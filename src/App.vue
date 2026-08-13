@@ -3,15 +3,23 @@ import * as THREE from 'three'
 import { onMounted, useTemplateRef } from 'vue'
 import {OrbitControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
+import type { KinematicCharacterController } from "@dimforge/rapier3d-compat";
 
 const gameContainer = useTemplateRef('gameContainer')
+
+//Three.js
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let controls: OrbitControls;
 let stats: Stats;
 
+// Rapier
 let physics: RapierPhysicsObject;
+let characterController: KinematicCharacterController;
+
+let player: THREE.Object3D<THREE.Object3DEventMap>;
+let movement: { forward: any; right: any; };
 
 async function initializeThree() {
   scene = new THREE.Scene();
@@ -73,7 +81,28 @@ async function initializeThree() {
 
   onWindowResize();
 
+
+  // Movement input
+  movement = { forward: 0, right: 0 };
+
+  window.addEventListener( 'keydown', ( event ) => {
+    if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.forward = 1;
+    if ( event.key === 's' || event.key === 'ArrowDown' ) movement.forward = - 1;
+    if ( event.key === 'a' || event.key === 'ArrowLeft' ) movement.right = - 1;
+    if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.right = 1;
+  })
+
+  window.addEventListener( 'keyup', ( event ) => {
+    if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.forward = 0;
+    if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.right = 0;
+  } );
+
   window.addEventListener('resize', onWindowResize, false);
+
+}
+
+function random( min: number, max: number ) {
+  return Math.random() * ( max - min ) + min;
 }
 
 async function initializePhysics() {
@@ -81,26 +110,44 @@ async function initializePhysics() {
 
   physics.addScene(scene);
 
-  addBody();
+  // addBody();
+  addCharacterController();
 }
 
-const geometries = [
-  new THREE.BoxGeometry( 1, 1, 1 ),
-  new THREE.SphereGeometry( 0.5 ),
-]
-
-function addBody() {
-  const geometry = geometries[0];
+function addCharacterController() {
+  // Character Capsule
+  const geometry = new THREE.CapsuleGeometry(0.3, 1, 8, 8);
   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
-  const mesh = new THREE.Mesh(geometry, material);
+  player = new THREE.Mesh(geometry, material);
+  player.castShadow = true;
+  player.position.set(0, 0.8, 0);
+  scene.add(player);
 
-  mesh.castShadow = true;
-  mesh.position.set(Math.random() * 2 - 1, Math.random() * 3 + 6, Math.random() * 2 - 1);
-
-  scene.add( mesh );
-
-  physics.addMesh(mesh, 1, 0.5);
+  // Rapier Character Controller
+  characterController = physics.world.createCharacterController(0.01);
+  characterController.setApplyImpulsesToDynamicBodies(true);
+  characterController.setCharacterMass(3);
+  const colliderDesc = physics.RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
+  player.userData.collider = physics.world.createCollider( colliderDesc);
 }
+
+// const geometries = [
+//   new THREE.BoxGeometry( 1, 1, 1 ),
+//   new THREE.SphereGeometry( 0.5 ),
+// ]
+
+// function addBody() {
+//   const geometry = geometries[0];
+//   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
+//   const mesh = new THREE.Mesh(geometry, material);
+//
+//   mesh.castShadow = true;
+//   mesh.position.set(Math.random() * 2 - 1, Math.random() * 3 + 6, Math.random() * 2 - 1);
+//
+//   scene.add( mesh );
+//
+//   physics.addMesh(mesh, 1, 0.5);
+// }
 
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -112,37 +159,30 @@ function onWindowResize() {
 function animate(){
   controls.update();
   renderer.render( scene, camera );
+
+  if(physics && characterController ) {
+    const deltaTime = 1 /60;
+    // Character movement
+    const speed = 2.5 * deltaTime;
+    const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
+
+    characterController.computeColliderMovement(player.userData.collider, moveVector);
+
+    // Read the result
+    const translation = characterController.computedMovement();
+    const position = player.userData.collider.translation();
+
+    position.x += translation.x;
+    position.y += translation.y;
+    position.z += translation.z;
+
+    player.userData.collider.setTranslation(position);
+
+    // Sync three.js mesh with rapier collider
+    player.position.set(position.x, position.y, position.z);
+  }
   stats.update();
 }
-
-// function old() {
-//   // Setup
-//   const gameContainer = useTemplateRef('gameContainer')
-//   const scene = new THREE.Scene();
-//   const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-//
-//   const renderer = new THREE.WebGLRenderer();
-//   renderer.setSize( window.innerWidth, window.innerHeight );
-//   renderer.setAnimationLoop( animate );
-//
-// // Meshes
-//   const geometry = new THREE.BoxGeometry(1,1,1);
-//   const material = new THREE.MeshBasicMaterial( {color: 0x00ff00 } );
-//   const cube = new THREE.Mesh(geometry, material );
-//   scene.add(cube);
-//
-//   camera.position.z = 5;
-//
-// // Rendering
-//   function animate( time:number ) {
-//     // Animation
-//     cube.rotation.x = time / 2000;
-//     cube.rotation.y = time / 1000;
-//
-//     renderer.render( scene, camera );
-//   }
-// }
-
 
 onMounted( () => {
   initializeThree();
