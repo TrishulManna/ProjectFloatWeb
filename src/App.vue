@@ -69,7 +69,7 @@ async function initializeThree() {
   stats = new Stats();
   gameContainer.value?.appendChild(renderer.domElement);
 
-  initializePhysics();
+  await initializePhysics();
 
   onWindowResize();
 
