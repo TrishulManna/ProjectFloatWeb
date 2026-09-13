@@ -15,14 +15,15 @@ let renderer: THREE.WebGLRenderer;
 let stats: Stats;
 let controls: PointerLockControls;
 let prevTime = performance.now();
-const velocity = new THREE.Vector3();
-let direction = new THREE.Vector3();
-
-let moveForward = false;
-let moveBackward = false;
-let moveLeft = false;
-let moveRight = false;
-let canJump = false;
+// const velocity = new THREE.Vector3();
+// let direction = new THREE.Vector3();
+//
+// let moveForward = false;
+// let moveBackward = false;
+// let moveLeft = false;
+// let moveRight = false;
+// let canJump = false;
+let yaw = 0;
 
 
 // Rapier
@@ -166,9 +167,9 @@ async function initializeThree() {
   //   }
   // };
 
-
   // window.addEventListener( 'keydown', onKeyDown );
   // window.addEventListener( 'keyup', onKeyUp );
+
   window.addEventListener('resize', onWindowResize, false);
 
 }
@@ -185,7 +186,7 @@ async function initializePhysics() {
   // addBody();
   addCharacterController();
 
-  console.log('phy', physics)
+  //Add both worlds to the debugger
   debugRenderer = new RapierDebugRenderer(scene, physics.world);
 }
 
@@ -202,8 +203,26 @@ function addCharacterController() {
   characterController = physics.world.createCharacterController(0.01);
   characterController.setApplyImpulsesToDynamicBodies(true);
   characterController.setCharacterMass(3);
+
+  // Rigid body
+  const rigidBodyDesc = physics.RAPIER.RigidBodyDesc.kinematicPositionBased();
+  const rigidBody = physics.world.createRigidBody(rigidBodyDesc);
+
+  // Collider
   const colliderDesc = physics.RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
-  player.userData.collider = physics.world.createCollider( colliderDesc);
+  const collider = physics.world.createCollider(colliderDesc, rigidBody);
+
+  player.userData.rigidBody = rigidBody;
+  player.userData.collider = collider;
+
+  // const rotation = new THREE.Quaternion();
+  // rotation.setFromEuler(
+  //     new THREE.Euler(0, THREE.MathUtils.degToRad(30), 0)
+  // );
+  //
+  // rigidBody.setNextKinematicRotation(rotation);
+
+  // player.userData.collider = physics.world.createCollider( colliderDesc);
 }
 
 // const geometries = [
@@ -231,6 +250,7 @@ function onWindowResize() {
   renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
+// let angle = 0;
 function animate(){
   // const time = performance.now();
   // const delta = ( time - performance.now() ) / 1000;
@@ -260,6 +280,7 @@ function animate(){
 
   if(physics && characterController ) {
     const deltaTime = 1 /60;
+    // angle += 1 * deltaTime;
     // Character movement
     const speed = 2.5 * deltaTime;
     const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
@@ -276,8 +297,17 @@ function animate(){
 
     player.userData.collider.setTranslation(position);
 
+    // const rotation = new THREE.Quaternion();
+    // rotation.setFromEuler(
+    //     new THREE.Euler(0, angle, 0)
+    // );
+    //
+    // player.userData.rigidBody.setNextKinematicRotation(rotation);
+
+
     // Sync three.js mesh with rapier collider
-    // player.position.set(position.x, position.y, position.z);
+    player.position.set(position.x, position.y, position.z);
+    camera.position.set(position.x, position.y, position.z);
 
     //DEBUG
     debugRenderer.update();
@@ -287,6 +317,8 @@ function animate(){
 
 onMounted( () => {
   initializeThree();
+
+  window.addEventListener('mousemove', onMouseMove);
 
   // Hides the pointer
   if(gameContainer.value) {
@@ -329,6 +361,25 @@ class RapierDebugRenderer {
     )
   }
 
+}
+
+function onMouseMove(event: MouseEvent) {
+  if (!controls.isLocked) return;
+
+  yaw -= event.movementX * 0.002;
+
+  const rotation = new THREE.Quaternion();
+
+  rotation.setFromEuler(
+      new THREE.Euler(0, yaw, 0)
+  );
+
+  player.userData.rigidBody.setNextKinematicRotation({
+    x: rotation.x,
+    y: rotation.y,
+    z: rotation.z,
+    w: rotation.w
+  });
 }
 
 </script>
