@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as THREE from 'three'
 import { onMounted, useTemplateRef } from 'vue'
-import {OrbitControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
+import {OrbitControls, PointerLockControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { KinematicCharacterController } from "@dimforge/rapier3d-compat";
 
@@ -11,22 +11,36 @@ const gameContainer = useTemplateRef('gameContainer')
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
-let controls: OrbitControls;
+// let oldControls: OrbitControls;
 let stats: Stats;
+let controls: PointerLockControls;
+let prevTime = performance.now();
+const velocity = new THREE.Vector3();
+let direction = new THREE.Vector3();
+
+let moveForward = false;
+let moveBackward = false;
+let moveLeft = false;
+let moveRight = false;
+let canJump = false;
+
 
 // Rapier
 let physics: RapierPhysicsObject;
 let characterController: KinematicCharacterController;
+let debugRenderer: RapierDebugRenderer;
 
 let player: THREE.Object3D<THREE.Object3DEventMap>;
-let movement: { forward: any; right: any; };
+let movement: { forward: any; right: any;};
 
 async function initializeThree() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfd1e5);
 
-  camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100 );
-  camera.position.set(0, 3, 10);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100 );
+  camera.position.y = 1.5;
+  // camera.position.set(0, 3, 10);
+  // camera.position.y(3);
 
   const ambient = new THREE.HemisphereLight(0x555555, 0xFFFFFF );
 
@@ -58,10 +72,13 @@ async function initializeThree() {
   gameContainer.value?.appendChild(renderer.domElement);
   renderer.setAnimationLoop( animate );
 
-  controls = new OrbitControls( camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.target = new THREE.Vector3(0, 2, 0);
-  controls.update();
+  controls = new PointerLockControls(camera, renderer.domElement);
+  scene.add(controls.object);
+  //
+  // oldControls = new OrbitControls( camera, renderer.domElement);
+  // oldControls.enableDamping = true;
+  // oldControls.target = new THREE.Vector3(0, 2, 0);
+  // oldControls.update();
 
   const geometry = new THREE.BoxGeometry(10, 0.5, 10 );
   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
@@ -81,7 +98,6 @@ async function initializeThree() {
 
   onWindowResize();
 
-
   // Movement input
   movement = { forward: 0, right: 0 };
 
@@ -97,6 +113,62 @@ async function initializeThree() {
     if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.right = 0;
   } );
 
+  // const onKeyDown = function ( event:KeyboardEvent ) {
+  //   switch ( event.code ) {
+  //     case 'ArrowUp':
+  //     case 'KeyW':
+  //       moveForward = true;
+  //       break;
+  //
+  //     case 'ArrowLeft':
+  //     case 'KeyA':
+  //       moveLeft = true;
+  //       break;
+  //
+  //     case 'ArrowDown':
+  //     case 'KeyS':
+  //       moveBackward = true;
+  //       break;
+  //
+  //     case 'ArrowRight':
+  //     case 'KeyD':
+  //       moveRight = true;
+  //       break;
+  //
+  //     // case 'Space':
+  //     //   if ( canJump === true ) velocity.y += 350;
+  //     //   canJump = false;
+  //     //   break;
+  //   }
+  // };
+  //
+  // const onKeyUp = function ( event:KeyboardEvent ) {
+  //   switch ( event.code ) {
+  //     case 'ArrowUp':
+  //     case 'KeyW':
+  //       moveForward = false;
+  //       break;
+  //
+  //     case 'ArrowLeft':
+  //     case 'KeyA':
+  //       moveLeft = false;
+  //       break;
+  //
+  //     case 'ArrowDown':
+  //     case 'KeyS':
+  //       moveBackward = false;
+  //       break;
+  //
+  //     case 'ArrowRight':
+  //     case 'KeyD':
+  //       moveRight = false;
+  //       break;
+  //   }
+  // };
+
+
+  // window.addEventListener( 'keydown', onKeyDown );
+  // window.addEventListener( 'keyup', onKeyUp );
   window.addEventListener('resize', onWindowResize, false);
 
 }
@@ -112,6 +184,9 @@ async function initializePhysics() {
 
   // addBody();
   addCharacterController();
+
+  console.log('phy', physics)
+  debugRenderer = new RapierDebugRenderer(scene, physics.world);
 }
 
 function addCharacterController() {
@@ -157,7 +232,30 @@ function onWindowResize() {
 }
 
 function animate(){
-  controls.update();
+  // const time = performance.now();
+  // const delta = ( time - performance.now() ) / 1000;
+  // // controls.object.position.y += ( velocity.y * delta ); // new behavior
+  //
+  // // oldControls.update();
+  // velocity.x -= velocity.x * 10.0 * delta;
+  // velocity.z -= velocity.z * 10.0 * delta;
+  //
+  // velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+  //
+  // // direction.z = Number( moveForward ) - Number( moveBackward );
+  // // direction.x = Number( moveRight ) - Number( moveLeft );
+  // // direction.normalize(); // this ensures consistent movements in all directions
+  //
+  // // if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
+  // // if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
+  // if ( movement ) velocity.z -= movement.forward * 400.0 * delta;
+  // if ( movement ) velocity.x -= movement.right * 400.0 * delta;
+  //
+  // controls.moveRight( - velocity.x * delta );
+  // controls.moveForward( - velocity.z * delta );
+  //
+  // controls.object.position.y += ( velocity.y * delta ); // new behavior
+  controls.update;
   renderer.render( scene, camera );
 
   if(physics && characterController ) {
@@ -179,14 +277,59 @@ function animate(){
     player.userData.collider.setTranslation(position);
 
     // Sync three.js mesh with rapier collider
-    player.position.set(position.x, position.y, position.z);
+    // player.position.set(position.x, position.y, position.z);
+
+    //DEBUG
+    debugRenderer.update();
   }
   stats.update();
 }
 
 onMounted( () => {
   initializeThree();
+
+  // Hides the pointer
+  if(gameContainer.value) {
+    gameContainer.value.addEventListener( 'click', function () {
+      controls.lock();
+    } );
+  }
 })
+
+class RapierDebugRenderer {
+  private mesh: THREE.LineSegments
+
+  constructor(
+      scene: THREE.Scene,
+      private world: RapierPhysicsObject["world"]
+  ) {
+
+    const geometry = new THREE.BufferGeometry()
+    const material = new THREE.LineBasicMaterial({
+      vertexColors: true
+    })
+
+    this.mesh = new THREE.LineSegments(geometry, material)
+    this.mesh.frustumCulled = false
+    scene.add(this.mesh)
+
+  }
+
+  update() {
+    const { vertices, colors } = this.world.debugRender()
+
+    this.mesh.geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(vertices, 3)
+    )
+
+    this.mesh.geometry.setAttribute(
+        'color',
+        new THREE.BufferAttribute(colors, 4)
+    )
+  }
+
+}
 
 </script>
 
