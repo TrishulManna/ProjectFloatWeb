@@ -283,19 +283,50 @@ function animate(){
     // angle += 1 * deltaTime;
     // Character movement
     const speed = 2.5 * deltaTime;
-    const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
+    const localMove = new THREE.Vector3(
+        movement.right,
+        0,
+        -movement.forward
+    );
+    const rotation = player.userData.rigidBody.rotation();
+    const quaternion = new THREE.Quaternion(
+        rotation.x,
+        rotation.y,
+        rotation.z,
+        rotation.w
+    );
+
+    localMove.applyQuaternion(quaternion);
+    localMove.multiplyScalar(speed);
+
+    const moveVector = new physics.RAPIER.Vector3(
+        localMove.x,
+        localMove.y,
+        localMove.z
+    );
+
+    // const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
 
     characterController.computeColliderMovement(player.userData.collider, moveVector);
 
     // Read the result
     const translation = characterController.computedMovement();
-    const position = player.userData.collider.translation();
+    const position = player.userData.rigidBody.translation();
 
-    position.x += translation.x;
-    position.y += translation.y;
-    position.z += translation.z;
+    const nextPosition = {
+      x: position.x + translation.x,
+      y: position.y + translation.y,
+      z: position.z + translation.z
+    };
 
-    player.userData.collider.setTranslation(position);
+    player.userData.rigidBody.setNextKinematicTranslation(nextPosition);
+    // const position = player.userData.collider.translation();
+    //
+    // position.x += translation.x;
+    // position.y += translation.y;
+    // position.z += translation.z;
+    //
+    // player.userData.collider.setTranslation(position);
 
     // const rotation = new THREE.Quaternion();
     // rotation.setFromEuler(
@@ -307,7 +338,7 @@ function animate(){
 
     // Sync three.js mesh with rapier collider
     player.position.set(position.x, position.y, position.z);
-    camera.position.set(position.x, position.y, position.z);
+    camera.position.set(position.x, position.y + 0.5, position.z);
 
     //DEBUG
     debugRenderer.update();
