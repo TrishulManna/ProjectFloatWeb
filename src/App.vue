@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import * as THREE from 'three'
-import { onMounted, useTemplateRef } from 'vue'
+import {onMounted, ref, useTemplateRef} from 'vue'
 import {OrbitControls, PointerLockControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 
+// Vue.js
 const gameContainer = useTemplateRef('gameContainer')
+const showMenu = ref(true);
 
 //Three.js
 let scene: THREE.Scene;
@@ -193,6 +195,15 @@ async function initializeThree() {
   // window.addEventListener( 'keyup', onKeyUp );
 
   window.addEventListener('resize', onWindowResize, false);
+
+  window.addEventListener('mousemove', onMouseMove);
+
+  // Hides the pointer
+  if(gameContainer.value) {
+    gameContainer.value.addEventListener( 'click', function () {
+      controls.lock();
+    } );
+  }
 
 }
 
@@ -426,17 +437,22 @@ function animate(){
   stats.update();
 }
 
-onMounted( () => {
+function startGame(){
   initializeThree();
+  showMenu.value = false;
+}
 
-  window.addEventListener('mousemove', onMouseMove);
+onMounted( () => {
+  // initializeThree();
 
-  // Hides the pointer
-  if(gameContainer.value) {
-    gameContainer.value.addEventListener( 'click', function () {
-      controls.lock();
-    } );
-  }
+  // window.addEventListener('mousemove', onMouseMove);
+
+  // // Hides the pointer
+  // if(gameContainer.value) {
+  //   gameContainer.value.addEventListener( 'click', function () {
+  //     controls.lock();
+  //   } );
+  // }
 })
 
 class RapierDebugRenderer {
@@ -496,8 +512,48 @@ function onMouseMove(event: MouseEvent) {
 </script>
 
 <template>
+  <div class="menu-container" v-if="showMenu">
+    <span class="title">Project Float</span>
+    <div class="menu">
+      <button @click="startGame()">Play</button>
+      <button>Resume</button>
+      <button>Reset</button>
+      <button>Quit</button>
+    </div>
+  </div>
   <div ref="gameContainer"></div>
 </template>
 
 <style scoped>
+.menu-container{
+  position: absolute;
+  background: hsl(217, 0%, 20%);
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: min-content 1fr;
+}
+
+.menu{
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 15vh;
+}
+
+.title{
+  color: white;
+  font-size: 4rem;
+  height: fit-content;
+  place-self: center;
+  margin-top: 10vh;
+}
+
+button{
+  font-size: 1.5rem;
+  height: 3rem;
+  width: 8rem;
+}
 </style>
