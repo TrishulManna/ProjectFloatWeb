@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { onMounted, useTemplateRef } from 'vue'
 import {OrbitControls, PointerLockControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
-import type { KinematicCharacterController } from "@dimforge/rapier3d-compat";
+import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 
 const gameContainer = useTemplateRef('gameContainer')
 
@@ -34,6 +34,9 @@ let gravity = -9.81;
 let verticalVelocity = 0;
 // let oldMovement: { forward: any; right: any;};
 let movement = new THREE.Vector3();
+let eventQueue: EventQueue | undefined;
+let playerHandle: number;
+let finishHandle: number;
 
 let player: THREE.Object3D<THREE.Object3DEventMap>;
 
@@ -123,7 +126,7 @@ async function initializeThree() {
     if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
     if ( event.key === 'a' || event.key === 'ArrowLeft' ) movement.setX(-1);
     if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.setX(1);
-    if ( event.key === ' ') verticalVelocity = 10;
+    if ( event.key === ' ') verticalVelocity = 8;
   })
 
   window.addEventListener( 'keyup', ( event ) => {
@@ -205,6 +208,7 @@ async function initializePhysics() {
   // addBody();
   addCharacterController();
   addFloor();
+  addBlocks();
 
   //Add both worlds to the debugger
   debugRenderer = new RapierDebugRenderer(scene, physics.world);
@@ -243,11 +247,37 @@ function addCharacterController() {
   // rigidBody.setNextKinematicRotation(rotation);
 
   // player.userData.collider = physics.world.createCollider( colliderDesc);
+  playerHandle = player.userData.collider.handle;
 }
 
 function addFloor() {
   const colliderDesc = physics.RAPIER.ColliderDesc.cuboid(10,0.1,10);
   physics.world.createCollider(colliderDesc);
+}
+
+function addBlocks() {
+  const finishPointDesc = physics.RAPIER.ColliderDesc
+      .cylinder(5,1)
+      .setTranslation(0, 8.5, -12)
+      .setSensor(true)
+      .setActiveEvents(physics.RAPIER.ActiveEvents.COLLISION_EVENTS)
+      .setActiveCollisionTypes(
+        physics.RAPIER.ActiveCollisionTypes.DEFAULT |
+        physics.RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
+      );
+
+  const finishPoint = physics.world.createCollider(finishPointDesc);
+
+  const colliderDesc = [
+    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
+    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 1, -5),
+    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 2, -8),
+    physics.RAPIER.ColliderDesc.cuboid(4,0.5,2).setTranslation(0, 3, -12),
+  ];
+
+  colliderDesc.forEach((el) => physics.world.createCollider(el))
+  finishHandle = finishPoint.handle;
+  eventQueue = new physics.RAPIER.EventQueue(true);
 }
 
 // const geometries = [
@@ -342,7 +372,13 @@ function animate(){
 
     // const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
 
-    characterController.computeColliderMovement(player.userData.collider, moveVector);
+    characterController.computeColliderMovement(
+        player.userData.collider,
+        moveVector,
+        undefined,
+        undefined,
+        (collider) => !collider.isSensor()
+    );
 
     // Read the result
     const translation = characterController.computedMovement();
@@ -370,7 +406,6 @@ function animate(){
     //
     // player.userData.rigidBody.setNextKinematicRotation(rotation);
 
-
     // Sync three.js mesh with rapier collider
     player.position.set(position.x, position.y, position.z);
     camera.position.set(position.x, position.y + 0.5, position.z);
@@ -380,6 +415,13 @@ function animate(){
 
     //DEBUG
     debugRenderer.update();
+
+    physics.world.step(eventQueue);
+    if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2, started) => {
+      const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
+      console.log(playerTouchedFinish && started);
+    })
+
   }
   stats.update();
 }
