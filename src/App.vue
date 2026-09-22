@@ -8,6 +8,8 @@ import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d
 // Vue.js
 const gameContainer = useTemplateRef('gameContainer')
 const showMenu = ref(true);
+const isPaused = ref(false);
+// const gameDestroyed = ref(false);
 
 //Three.js
 let scene: THREE.Scene;
@@ -16,7 +18,7 @@ let renderer: THREE.WebGLRenderer;
 // let oldControls: OrbitControls;
 let stats: Stats;
 let controls: PointerLockControls;
-let prevTime = performance.now();
+// let prevTime = performance.now();
 // const velocity = new THREE.Vector3();
 // let direction = new THREE.Vector3();
 //
@@ -26,6 +28,7 @@ let prevTime = performance.now();
 // let moveRight = false;
 // let canJump = false;
 let yaw = 0;
+let player: THREE.Object3D<THREE.Object3DEventMap>;
 
 
 // Rapier
@@ -39,8 +42,6 @@ let movement = new THREE.Vector3();
 let eventQueue: EventQueue | undefined;
 let playerHandle: number;
 let finishHandle: number;
-
-let player: THREE.Object3D<THREE.Object3DEventMap>;
 
 async function initializeThree() {
   scene = new THREE.Scene();
@@ -123,19 +124,18 @@ async function initializeThree() {
   //   if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) oldMovement.right = 0;
   // } );
 
-  window.addEventListener( 'keydown', ( event ) => {
-    if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.setZ(-1);
-    if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
-    if ( event.key === 'a' || event.key === 'ArrowLeft' ) movement.setX(-1);
-    if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.setX(1);
-    if ( event.key === ' ') verticalVelocity = 8;
-  })
+  window.addEventListener( 'keydown', onKeydown)
+  window.addEventListener( 'keyup', onKeyUp);
+  window.addEventListener('resize', onWindowResize, false);
+  window.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('pointerlockchange', pauseGame)
 
-  window.addEventListener( 'keyup', ( event ) => {
-    if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
-    if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
-  } );
-
+  // Hides the pointer
+  if(gameContainer.value) {
+    gameContainer.value.addEventListener( 'click', function () {
+      controls.lock();
+    } );
+  }
 
 
   // const onKeyDown = function ( event:KeyboardEvent ) {
@@ -194,16 +194,7 @@ async function initializeThree() {
   // window.addEventListener( 'keydown', onKeyDown );
   // window.addEventListener( 'keyup', onKeyUp );
 
-  window.addEventListener('resize', onWindowResize, false);
 
-  window.addEventListener('mousemove', onMouseMove);
-
-  // Hides the pointer
-  if(gameContainer.value) {
-    gameContainer.value.addEventListener( 'click', function () {
-      controls.lock();
-    } );
-  }
 
 }
 
@@ -309,12 +300,6 @@ function addBlocks() {
 //   physics.addMesh(mesh, 1, 0.5);
 // }
 
-function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-
-  renderer.setSize( window.innerWidth, window.innerHeight );
-}
 
 // let angle = 0;
 function animate(){
@@ -341,10 +326,12 @@ function animate(){
   // controls.moveForward( - velocity.z * delta );
   //
   // controls.object.position.y += ( velocity.y * delta ); // new behavior
+  // if(gameDestroyed.value){return}
+
   controls.update;
   renderer.render( scene, camera );
 
-  if(physics && characterController ) {
+  if(physics && characterController && !isPaused.value ) {
     const deltaTime = 1 /60;
     // angle += 1 * deltaTime;
     // Character movement
@@ -438,8 +425,57 @@ function animate(){
 }
 
 function startGame(){
-  initializeThree();
   showMenu.value = false;
+  console.log(isPaused.value)
+  initializeThree();
+}
+
+function pauseGame(){
+  if(!document.pointerLockElement){
+    showMenu.value = true;
+    isPaused.value = true;
+  }
+}
+
+function resumeGame(){
+    showMenu.value = false;
+    isPaused.value = false;
+}
+
+function resetGame(){
+
+}
+
+function destroyGame(){
+  // gameDestroyed.value = true;
+  // renderer.setAnimationLoop(null);
+  //
+  // window.removeEventListener( 'keydown', onKeydown)
+  // window.removeEventListener( 'keyup', onKeyUp);
+  // window.removeEventListener('resize', onWindowResize);
+  // window.removeEventListener('mousemove', onMouseMove);
+  // document.removeEventListener('pointerlockchange', pauseGame);
+  //
+  // eventQueue?.free();
+  // eventQueue = null;
+  //
+  // // physics.world.free();
+  // // physics.world = null;
+  //
+  // scene.traverse((object) => {
+  //   object.clear();
+  // });
+  //
+  // renderer.dispose();
+  // scene.clear();
+  // camera.clear();
+  //
+  // camera = null;
+  // renderer = null;
+  // scene = null;
+  // physics = null;
+  //
+  // isPaused.value = false;
 }
 
 onMounted( () => {
@@ -508,17 +544,33 @@ function onMouseMove(event: MouseEvent) {
     w: rotation.w
   });
 }
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
 
+  renderer.setSize( window.innerWidth, window.innerHeight );
+}
+function onKeydown(event: KeyboardEvent) {
+  if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.setZ(-1);
+  if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
+  if ( event.key === 'a' || event.key === 'ArrowLeft' ) movement.setX(-1);
+  if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.setX(1);
+  if ( event.key === ' ') verticalVelocity = 8;
+}
+function onKeyUp(event: KeyboardEvent){
+  if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
+  if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
+}
 </script>
 
 <template>
   <div class="menu-container" v-if="showMenu">
     <span class="title">Project Float</span>
     <div class="menu">
-      <button @click="startGame()">Play</button>
-      <button>Resume</button>
-      <button>Reset</button>
-      <button>Quit</button>
+      <button v-if="!isPaused" @click="startGame()">Play</button>
+      <button v-if="isPaused" @click="resumeGame()">Resume</button>
+      <button v-if="isPaused">Reset</button>
+      <button v-if="isPaused" @click="destroyGame()">Quit</button>
     </div>
   </div>
   <div ref="gameContainer"></div>
@@ -527,7 +579,7 @@ function onMouseMove(event: MouseEvent) {
 <style scoped>
 .menu-container{
   position: absolute;
-  background: hsl(217, 0%, 20%);
+  background-color: rgb(0 0 0 / 70%);
   width: 100vw;
   height: 100vh;
   display: grid;
