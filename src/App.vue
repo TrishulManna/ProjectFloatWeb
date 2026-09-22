@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import * as THREE from 'three'
 import {onMounted, ref, useTemplateRef} from 'vue'
-import {OrbitControls, PointerLockControls, RapierPhysics, type RapierPhysicsObject} from 'three/examples/jsm/Addons.js'
+import {OrbitControls, PointerLockControls} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
+import RAPIER from "@dimforge/rapier3d-compat";
 
 // Vue.js
 const gameContainer = useTemplateRef('gameContainer')
@@ -32,7 +33,8 @@ let player: THREE.Object3D<THREE.Object3DEventMap>;
 
 
 // Rapier
-let physics: RapierPhysicsObject;
+// let physics: RapierPhysicsObject;
+let world: RAPIER.World;
 let characterController: KinematicCharacterController;
 let debugRenderer: RapierDebugRenderer;
 let gravity = -9.81;
@@ -97,7 +99,7 @@ async function initializeThree() {
   floor.receiveShadow = true;
 
   floor.position.y = - 0.25;
-  floor.userData.physics = { mass: 0 };
+  // floor.userData.physics = { mass: 0 };
 
   scene.add( floor );
 
@@ -198,14 +200,12 @@ async function initializeThree() {
 
 }
 
-function random( min: number, max: number ) {
-  return Math.random() * ( max - min ) + min;
-}
-
 async function initializePhysics() {
-  physics = await RapierPhysics();
-
-  physics.addScene(scene);
+  // physics = await RapierPhysics();
+  // physics.addScene(scene);
+  let gravity = { x: 0.0, y: -9.81, z: 0.0 };
+  await RAPIER.init();
+  world = new RAPIER.World(gravity);
 
   // addBody();
   addCharacterController();
@@ -213,7 +213,7 @@ async function initializePhysics() {
   addBlocks();
 
   //Add both worlds to the debugger
-  debugRenderer = new RapierDebugRenderer(scene, physics.world);
+  debugRenderer = new RapierDebugRenderer(scene, world);
 }
 
 function addCharacterController() {
@@ -226,17 +226,17 @@ function addCharacterController() {
   scene.add(player);
 
   // Rapier Character Controller
-  characterController = physics.world.createCharacterController(0.01);
+  characterController = world.createCharacterController(0.01);
   characterController.setApplyImpulsesToDynamicBodies(true);
   characterController.setCharacterMass(3);
 
   // Rigid body
-  const rigidBodyDesc = physics.RAPIER.RigidBodyDesc.kinematicPositionBased();
-  const rigidBody = physics.world.createRigidBody(rigidBodyDesc);
+  const rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased();
+  const rigidBody = world.createRigidBody(rigidBodyDesc);
 
   // Collider
-  const colliderDesc = physics.RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
-  const collider = physics.world.createCollider(colliderDesc, rigidBody);
+  const colliderDesc = RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
+  const collider = world.createCollider(colliderDesc, rigidBody);
 
   player.userData.rigidBody = rigidBody;
   player.userData.collider = collider;
@@ -253,33 +253,33 @@ function addCharacterController() {
 }
 
 function addFloor() {
-  const colliderDesc = physics.RAPIER.ColliderDesc.cuboid(10,0.1,10);
-  physics.world.createCollider(colliderDesc);
+  const colliderDesc = RAPIER.ColliderDesc.cuboid(10,0.1,10);
+  world.createCollider(colliderDesc);
 }
 
 function addBlocks() {
-  const finishPointDesc = physics.RAPIER.ColliderDesc
+  const finishPointDesc = RAPIER.ColliderDesc
       .cylinder(5,1)
       .setTranslation(0, 8.5, -12)
       .setSensor(true)
-      .setActiveEvents(physics.RAPIER.ActiveEvents.COLLISION_EVENTS)
+      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
       .setActiveCollisionTypes(
-        physics.RAPIER.ActiveCollisionTypes.DEFAULT |
-        physics.RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
+        RAPIER.ActiveCollisionTypes.DEFAULT |
+        RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
       );
 
-  const finishPoint = physics.world.createCollider(finishPointDesc);
+  const finishPoint = world.createCollider(finishPointDesc);
 
   const colliderDesc = [
-    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
-    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 1, -5),
-    physics.RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 2, -8),
-    physics.RAPIER.ColliderDesc.cuboid(4,0.5,2).setTranslation(0, 3, -12),
+    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
+    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 1, -5),
+    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 2, -8),
+    RAPIER.ColliderDesc.cuboid(4,0.5,2).setTranslation(0, 3, -12),
   ];
 
-  colliderDesc.forEach((el) => physics.world.createCollider(el))
+  colliderDesc.forEach((el) => world.createCollider(el))
   finishHandle = finishPoint.handle;
-  eventQueue = new physics.RAPIER.EventQueue(true);
+  eventQueue = new RAPIER.EventQueue(true);
 }
 
 // const geometries = [
@@ -331,7 +331,7 @@ function animate(){
   controls.update;
   renderer.render( scene, camera );
 
-  if(physics && characterController && !isPaused.value ) {
+  if(world && characterController && !isPaused.value ) {
     const deltaTime = 1 /60;
     // angle += 1 * deltaTime;
     // Character movement
@@ -362,7 +362,7 @@ function animate(){
     // const verticalMovement =
     //     verticalVelocity * deltaTime;
 
-    const moveVector = new physics.RAPIER.Vector3(
+    const moveVector = new RAPIER.Vector3(
         localMove.x,
         verticalVelocity * deltaTime,
         localMove.z
@@ -414,7 +414,7 @@ function animate(){
     //DEBUG
     debugRenderer.update();
 
-    physics.world.step(eventQueue);
+    world.step(eventQueue);
     if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2, started) => {
       const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
       console.log(playerTouchedFinish && started);
@@ -496,7 +496,7 @@ class RapierDebugRenderer {
 
   constructor(
       scene: THREE.Scene,
-      private world: RapierPhysicsObject["world"]
+      private world: RAPIER.World
   ) {
 
     const geometry = new THREE.BufferGeometry()
