@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import * as THREE from 'three'
 import {onMounted, ref, useTemplateRef} from 'vue'
-import {OrbitControls, PointerLockControls} from 'three/examples/jsm/Addons.js'
+import {PointerLockControls} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Vue.js
-const gameContainer = useTemplateRef('gameContainer')
+// const gameContainer = useTemplateRef('gameContainer')
+const gameCanvas = useTemplateRef('gameCanvas');
 const showMenu = ref(true);
 const isPaused = ref(false);
 // const gameDestroyed = ref(false);
@@ -77,11 +78,11 @@ async function initializeThree() {
 
   scene.add(light);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: true, canvas: gameCanvas.value! });
   renderer.setPixelRatio( window.devicePixelRatio );
   renderer.setSize( window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  gameContainer.value?.appendChild(renderer.domElement);
+  // gameContainer.value?.appendChild(renderer.domElement);
   renderer.setAnimationLoop( animate );
 
   controls = new PointerLockControls(camera, renderer.domElement);
@@ -104,7 +105,7 @@ async function initializeThree() {
   scene.add( floor );
 
   stats = new Stats();
-  gameContainer.value?.appendChild(renderer.domElement);
+  // gameContainer.value?.appendChild(renderer.domElement);
 
   await initializePhysics();
 
@@ -133,8 +134,8 @@ async function initializeThree() {
   document.addEventListener('pointerlockchange', pauseGame)
 
   // Hides the pointer
-  if(gameContainer.value) {
-    gameContainer.value.addEventListener( 'click', function () {
+  if(gameCanvas.value) {
+    gameCanvas.value.addEventListener( 'click', function () {
       controls.lock();
     } );
   }
@@ -362,6 +363,9 @@ function animate(){
     // const verticalMovement =
     //     verticalVelocity * deltaTime;
 
+    // Apply gravity
+    verticalVelocity += gravity * deltaTime
+
     const moveVector = new RAPIER.Vector3(
         localMove.x,
         verticalVelocity * deltaTime,
@@ -377,6 +381,12 @@ function animate(){
         undefined,
         (collider) => !collider.isSensor()
     );
+
+    const grounded = characterController.computedGrounded();
+    // Do not apply / accumulate gravity when grounded
+    if(grounded && verticalVelocity < 0) {
+      verticalVelocity = 0;
+    }
 
     // Read the result
     const translation = characterController.computedMovement();
@@ -407,9 +417,6 @@ function animate(){
     // Sync three.js mesh with rapier collider
     player.position.set(position.x, position.y, position.z);
     camera.position.set(position.x, position.y + 0.5, position.z);
-
-    // Apply constant gravity on the Y of the character
-    verticalVelocity += gravity * deltaTime;
 
     //DEBUG
     debugRenderer.update();
@@ -443,39 +450,50 @@ function resumeGame(){
 }
 
 function resetGame(){
-
+  destroyGame();
+  startGame();
 }
 
 function destroyGame(){
   // gameDestroyed.value = true;
-  // renderer.setAnimationLoop(null);
-  //
-  // window.removeEventListener( 'keydown', onKeydown)
-  // window.removeEventListener( 'keyup', onKeyUp);
-  // window.removeEventListener('resize', onWindowResize);
-  // window.removeEventListener('mousemove', onMouseMove);
-  // document.removeEventListener('pointerlockchange', pauseGame);
-  //
-  // eventQueue?.free();
+  renderer.setAnimationLoop(null);
+
+  window.removeEventListener( 'keydown', onKeydown)
+  window.removeEventListener( 'keyup', onKeyUp);
+  window.removeEventListener('resize', onWindowResize);
+  window.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('pointerlockchange', pauseGame);
+
+  eventQueue?.free();
   // eventQueue = null;
-  //
-  // // physics.world.free();
-  // // physics.world = null;
-  //
+
+  world.free();
+  // world = null;
+
   // scene.traverse((object) => {
   //   object.clear();
   // });
-  //
-  // renderer.dispose();
-  // scene.clear();
-  // camera.clear();
-  //
+  scene.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      object.geometry.dispose();
+      if (Array.isArray(object.material)) {
+        object.material.forEach(material => material.dispose());
+      } else {
+        object.material.dispose();
+      }
+    }
+  });
+  scene.clear();
+
+  renderer.dispose();
+  camera.clear();
+  // scene.remove();
+
   // camera = null;
   // renderer = null;
   // scene = null;
-  // physics = null;
-  //
-  // isPaused.value = false;
+
+  isPaused.value = false;
 }
 
 onMounted( () => {
@@ -492,7 +510,7 @@ onMounted( () => {
 })
 
 class RapierDebugRenderer {
-  private mesh: THREE.LineSegments
+  private readonly mesh: THREE.LineSegments
 
   constructor(
       scene: THREE.Scene,
@@ -569,11 +587,14 @@ function onKeyUp(event: KeyboardEvent){
     <div class="menu">
       <button v-if="!isPaused" @click="startGame()">Play</button>
       <button v-if="isPaused" @click="resumeGame()">Resume</button>
-      <button v-if="isPaused">Reset</button>
+      <button v-if="isPaused" @click="resetGame()">Reset</button>
       <button v-if="isPaused" @click="destroyGame()">Quit</button>
     </div>
   </div>
-  <div ref="gameContainer"></div>
+  <div class="gameContainer">
+    <canvas ref="gameCanvas"></canvas>
+  </div>
+
 </template>
 
 <style scoped>
@@ -607,5 +628,11 @@ button{
   font-size: 1.5rem;
   height: 3rem;
   width: 8rem;
+}
+
+.gameContainer{
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 </style>
