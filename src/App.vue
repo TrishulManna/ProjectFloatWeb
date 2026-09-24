@@ -422,7 +422,9 @@ function animate(){
     world.step(eventQueue);
     if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2, started) => {
       const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
-      console.log(playerTouchedFinish && started);
+      if (playerTouchedFinish) {
+        destroyGame();
+      }
     })
 
   }
@@ -431,19 +433,18 @@ function animate(){
 
 function startGame(){
   showMenu.value = false;
-  console.log(isPaused.value)
   initializeThree();
 }
 
 function pauseGame(){
   if(!document.pointerLockElement){
-    showMenu.value = true;
+    // showMenu.value = true;
     isPaused.value = true;
   }
 }
 
 function resumeGame(){
-    showMenu.value = false;
+    // showMenu.value = false;
     isPaused.value = false;
 }
 
@@ -454,6 +455,8 @@ function resetGame(){
 
 function destroyGame(){
   // gameDestroyed.value = true;
+  showMenu.value = true;
+
   renderer.setAnimationLoop(null);
 
   window.removeEventListener( 'keydown', onKeydown)
@@ -462,8 +465,6 @@ function destroyGame(){
   window.removeEventListener('mousemove', onMouseMove);
   document.removeEventListener('pointerlockchange', pauseGame);
   window.removeEventListener('click', onMouseClick);
-
-  eventQueue?.free();
   // eventQueue = null;
 
   world.free();
@@ -486,6 +487,8 @@ function destroyGame(){
 
   renderer.dispose();
   camera.clear();
+
+  eventQueue?.free();
   // scene.remove();
 
   // camera = null;
@@ -587,10 +590,15 @@ function onMouseClick(){
   <div class="menu-container" v-if="showMenu">
     <span class="title">Project Float</span>
     <div class="menu">
-      <button v-if="!isPaused" @click="startGame()">Play</button>
-      <button v-if="isPaused" @click="resumeGame()">Resume</button>
-      <button v-if="isPaused" @click="resetGame()">Reset</button>
-      <button v-if="isPaused" @click="destroyGame()">Quit</button>
+      <button @click="startGame()">Play</button>
+    </div>
+  </div>
+  <div class="menu-container paused" v-if="isPaused">
+    <span class="title">Paused</span>
+    <div class="menu">
+      <button @click="resumeGame()">Resume</button>
+      <button @click="resetGame()">Reset</button>
+      <button @click="destroyGame()">Quit</button>
     </div>
   </div>
   <div class="gameContainer">
@@ -602,11 +610,15 @@ function onMouseClick(){
 <style scoped>
 .menu-container{
   position: absolute;
-  background-color: rgb(0 0 0 / 70%);
+  background-color: rgb(0 0 0 / 100%);
   width: 100vw;
   height: 100vh;
   display: grid;
   grid-template-rows: min-content 1fr;
+}
+
+.menu-container.paused{
+  background-color: rgb(0 0 0 / 70%);
 }
 
 .menu{
