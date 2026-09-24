@@ -93,16 +93,16 @@ async function initializeThree() {
   // oldControls.target = new THREE.Vector3(0, 2, 0);
   // oldControls.update();
 
-  const geometry = new THREE.BoxGeometry(10, 0.5, 10 );
-  const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
+  // const geometry = new THREE.BoxGeometry(10, 0.5, 10 );
+  // const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
 
-  const floor = new THREE.Mesh( geometry, material );
-  floor.receiveShadow = true;
-
-  floor.position.y = - 0.25;
+  // const floor = new THREE.Mesh( geometry, material );
+  // floor.receiveShadow = true;
+  //
+  // floor.position.y = - 0.25;
   // floor.userData.physics = { mass: 0 };
 
-  scene.add( floor );
+  // scene.add( floor );
 
   stats = new Stats();
   // gameContainer.value?.appendChild(renderer.domElement);
@@ -137,8 +137,6 @@ async function initializeThree() {
   if(gameCanvas.value) {
     gameCanvas.value.addEventListener( 'click', onMouseClick);
   }
-
-
   // const onKeyDown = function ( event:KeyboardEvent ) {
   //   switch ( event.code ) {
   //     case 'ArrowUp':
@@ -194,9 +192,6 @@ async function initializeThree() {
 
   // window.addEventListener( 'keydown', onKeyDown );
   // window.addEventListener( 'keyup', onKeyUp );
-
-
-
 }
 
 async function initializePhysics() {
@@ -216,7 +211,7 @@ async function initializePhysics() {
 }
 
 function addCharacterController() {
-  // Character Capsule
+  // Three.js Character Capsule
   const geometry = new THREE.CapsuleGeometry(0.3, 1, 8, 8);
   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
   player = new THREE.Mesh(geometry, material);
@@ -224,21 +219,18 @@ function addCharacterController() {
   player.position.set(0, 0.8, 0);
   scene.add(player);
 
-  // Rapier Character Controller
+  // Rapier Character Capsule
   characterController = world.createCharacterController(0.01);
   characterController.setApplyImpulsesToDynamicBodies(true);
   characterController.setCharacterMass(3);
-
-  // Rigid body
   const rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased();
   const rigidBody = world.createRigidBody(rigidBodyDesc);
-
-  // Collider
   const colliderDesc = RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
   const collider = world.createCollider(colliderDesc, rigidBody);
 
   player.userData.rigidBody = rigidBody;
   player.userData.collider = collider;
+  playerHandle = player.userData.collider.handle;
 
   // const rotation = new THREE.Quaternion();
   // rotation.setFromEuler(
@@ -248,15 +240,28 @@ function addCharacterController() {
   // rigidBody.setNextKinematicRotation(rotation);
 
   // player.userData.collider = physics.world.createCollider( colliderDesc);
-  playerHandle = player.userData.collider.handle;
 }
 
 function addFloor() {
+  // Three.js
+  const geometry = new THREE.BoxGeometry(20, 0.2, 20 );
+  const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
+  const floor = new THREE.Mesh( geometry, material );
+  floor.receiveShadow = true;
+  scene.add( floor );
+
+  // Rapier
   const colliderDesc = RAPIER.ColliderDesc.cuboid(10,0.1,10);
   world.createCollider(colliderDesc);
 }
 
 function addBlocks() {
+  const finishPointGeometry = new THREE.CylinderGeometry(1, 1,10);
+  const material = new THREE.MeshStandardMaterial( { color: 0x00FF00, opacity:0.3, transparent: true } );
+  const finishPointMesh = new THREE.Mesh(finishPointGeometry, material);
+  finishPointMesh.position.set(0, 8.5, -12);
+  scene.add(finishPointMesh);
+
   const finishPointDesc = RAPIER.ColliderDesc
       .cylinder(5,1)
       .setTranslation(0, 8.5, -12)
@@ -268,15 +273,34 @@ function addBlocks() {
       );
 
   const finishPoint = world.createCollider(finishPointDesc);
+  // Refactor, very innefficient jha
+  const platformMeshes = [
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+      pos: new THREE.Vector3(0,0,-2)
+    },
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+      pos: new THREE.Vector3(0,1,-5)
+    },
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+      pos: new THREE.Vector3(0,2,-8)
+    },
+    { mesh: new THREE.Mesh(new THREE.BoxGeometry(8, 1,4), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+      pos: new THREE.Vector3(0,3,-12)
+    },
+  ]
 
-  const colliderDesc = [
+  platformMeshes.forEach(el => el.mesh.position.copy(el.pos));
+  platformMeshes.forEach(el => scene.add(el.mesh));
+
+
+  const platformColliders = [
     RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
     RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 1, -5),
     RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 2, -8),
     RAPIER.ColliderDesc.cuboid(4,0.5,2).setTranslation(0, 3, -12),
   ];
 
-  colliderDesc.forEach((el) => world.createCollider(el))
+  platformColliders.forEach((el) => world.createCollider(el))
   finishHandle = finishPoint.handle;
   eventQueue = new RAPIER.EventQueue(true);
 }
