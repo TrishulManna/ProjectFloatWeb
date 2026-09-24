@@ -135,9 +135,7 @@ async function initializeThree() {
 
   // Hides the pointer
   if(gameCanvas.value) {
-    gameCanvas.value.addEventListener( 'click', function () {
-      controls.lock();
-    } );
+    gameCanvas.value.addEventListener( 'click', onMouseClick);
   }
 
 
@@ -463,6 +461,7 @@ function destroyGame(){
   window.removeEventListener('resize', onWindowResize);
   window.removeEventListener('mousemove', onMouseMove);
   document.removeEventListener('pointerlockchange', pauseGame);
+  window.removeEventListener('click', onMouseClick);
 
   eventQueue?.free();
   // eventQueue = null;
@@ -578,6 +577,9 @@ function onKeydown(event: KeyboardEvent) {
 function onKeyUp(event: KeyboardEvent){
   if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
   if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
+}
+function onMouseClick(){
+  controls.lock();
 }
 </script>
 
