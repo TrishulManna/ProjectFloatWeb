@@ -191,7 +191,6 @@ function addBlocks() {
 }
 
 function animate(){
-  controls.update;
   renderer.render( scene, camera );
 
   if(world && characterController && !isPaused.value ) {
@@ -371,12 +370,14 @@ function onMouseMove(event: MouseEvent) {
     w: rotation.w
   });
 }
+
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
 
   renderer.setSize( window.innerWidth, window.innerHeight );
 }
+
 function onKeydown(event: KeyboardEvent) {
   if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.setZ(-1);
   if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
@@ -384,10 +385,12 @@ function onKeydown(event: KeyboardEvent) {
   if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.setX(1);
   if ( event.key === ' ') verticalVelocity = 8;
 }
+
 function onKeyUp(event: KeyboardEvent){
   if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
   if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
 }
+
 function onMouseClick(){
   controls.lock();
 }
