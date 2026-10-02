@@ -1,46 +1,32 @@
 <script setup lang="ts">
 import * as THREE from 'three'
-import {onMounted, ref, useTemplateRef} from 'vue'
+import {ref, useTemplateRef} from 'vue'
 import {PointerLockControls} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 import RAPIER from "@dimforge/rapier3d-compat";
 
 // Vue.js
-// const gameContainer = useTemplateRef('gameContainer')
 const gameCanvas = useTemplateRef('gameCanvas');
 const showMenu = ref(true);
 const isPaused = ref(false);
-// const gameDestroyed = ref(false);
 
 //Three.js
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
-// let oldControls: OrbitControls;
 let stats: Stats;
 let controls: PointerLockControls;
-// let prevTime = performance.now();
-// const velocity = new THREE.Vector3();
-// let direction = new THREE.Vector3();
-//
-// let moveForward = false;
-// let moveBackward = false;
-// let moveLeft = false;
-// let moveRight = false;
-// let canJump = false;
 let yaw = 0;
 let player: THREE.Object3D<THREE.Object3DEventMap>;
 
 
 // Rapier
-// let physics: RapierPhysicsObject;
 let world: RAPIER.World;
 let characterController: KinematicCharacterController;
 let debugRenderer: RapierDebugRenderer;
 let gravity = -9.81;
 let verticalVelocity = 0;
-// let oldMovement: { forward: any; right: any;};
 let movement = new THREE.Vector3();
 let eventQueue: EventQueue | undefined;
 let playerHandle: number;
@@ -52,8 +38,6 @@ async function initializeThree() {
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100 );
   camera.position.y = 1.5;
-  // camera.position.set(0, 3, 10);
-  // camera.position.y(3);
 
   const ambient = new THREE.HemisphereLight(0x555555, 0xFFFFFF );
 
@@ -82,51 +66,18 @@ async function initializeThree() {
   renderer.setPixelRatio( window.devicePixelRatio );
   renderer.setSize( window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  // gameContainer.value?.appendChild(renderer.domElement);
   renderer.setAnimationLoop( animate );
 
   controls = new PointerLockControls(camera, renderer.domElement);
   scene.add(controls.object);
-  //
-  // oldControls = new OrbitControls( camera, renderer.domElement);
-  // oldControls.enableDamping = true;
-  // oldControls.target = new THREE.Vector3(0, 2, 0);
-  // oldControls.update();
-
-  // const geometry = new THREE.BoxGeometry(10, 0.5, 10 );
-  // const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
-
-  // const floor = new THREE.Mesh( geometry, material );
-  // floor.receiveShadow = true;
-  //
-  // floor.position.y = - 0.25;
-  // floor.userData.physics = { mass: 0 };
-
-  // scene.add( floor );
 
   stats = new Stats();
-  // gameContainer.value?.appendChild(renderer.domElement);
 
   await initializePhysics();
 
   onWindowResize();
 
   // Movement input
-  // oldMovement = { forward: 0, right: 0 };
-  //
-  // window.addEventListener( 'keydown', ( event ) => {
-  //   if ( event.key === 'w' || event.key === 'ArrowUp' ) oldMovement.forward = 1;
-  //   if ( event.key === 's' || event.key === 'ArrowDown' ) oldMovement.forward = - 1;
-  //   if ( event.key === 'a' || event.key === 'ArrowLeft' ) oldMovement.right = - 1;
-  //   if ( event.key === 'd' || event.key === 'ArrowRight' ) oldMovement.right = 1;
-  //   if ( event.key === ' ') console.log('jhaa', event);
-  // })
-  //
-  // window.addEventListener( 'keyup', ( event ) => {
-  //   if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) oldMovement.forward = 0;
-  //   if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) oldMovement.right = 0;
-  // } );
-
   window.addEventListener( 'keydown', onKeydown)
   window.addEventListener( 'keyup', onKeyUp);
   window.addEventListener('resize', onWindowResize, false);
@@ -137,66 +88,9 @@ async function initializeThree() {
   if(gameCanvas.value) {
     gameCanvas.value.addEventListener( 'click', onMouseClick);
   }
-  // const onKeyDown = function ( event:KeyboardEvent ) {
-  //   switch ( event.code ) {
-  //     case 'ArrowUp':
-  //     case 'KeyW':
-  //       moveForward = true;
-  //       break;
-  //
-  //     case 'ArrowLeft':
-  //     case 'KeyA':
-  //       moveLeft = true;
-  //       break;
-  //
-  //     case 'ArrowDown':
-  //     case 'KeyS':
-  //       moveBackward = true;
-  //       break;
-  //
-  //     case 'ArrowRight':
-  //     case 'KeyD':
-  //       moveRight = true;
-  //       break;
-  //
-  //     // case 'Space':
-  //     //   if ( canJump === true ) velocity.y += 350;
-  //     //   canJump = false;
-  //     //   break;
-  //   }
-  // };
-  //
-  // const onKeyUp = function ( event:KeyboardEvent ) {
-  //   switch ( event.code ) {
-  //     case 'ArrowUp':
-  //     case 'KeyW':
-  //       moveForward = false;
-  //       break;
-  //
-  //     case 'ArrowLeft':
-  //     case 'KeyA':
-  //       moveLeft = false;
-  //       break;
-  //
-  //     case 'ArrowDown':
-  //     case 'KeyS':
-  //       moveBackward = false;
-  //       break;
-  //
-  //     case 'ArrowRight':
-  //     case 'KeyD':
-  //       moveRight = false;
-  //       break;
-  //   }
-  // };
-
-  // window.addEventListener( 'keydown', onKeyDown );
-  // window.addEventListener( 'keyup', onKeyUp );
 }
 
 async function initializePhysics() {
-  // physics = await RapierPhysics();
-  // physics.addScene(scene);
   let gravity = { x: 0.0, y: -9.81, z: 0.0 };
   await RAPIER.init();
   world = new RAPIER.World(gravity);
@@ -231,15 +125,6 @@ function addCharacterController() {
   player.userData.rigidBody = rigidBody;
   player.userData.collider = collider;
   playerHandle = player.userData.collider.handle;
-
-  // const rotation = new THREE.Quaternion();
-  // rotation.setFromEuler(
-  //     new THREE.Euler(0, THREE.MathUtils.degToRad(30), 0)
-  // );
-  //
-  // rigidBody.setNextKinematicRotation(rotation);
-
-  // player.userData.collider = physics.world.createCollider( colliderDesc);
 }
 
 function addFloor() {
@@ -273,7 +158,7 @@ function addBlocks() {
       );
 
   const finishPoint = world.createCollider(finishPointDesc);
-  // Refactor, very innefficient jha
+  // Refactor eventually
   const platformMeshes = [
     { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
       pos: new THREE.Vector3(0,0,-2)
@@ -305,65 +190,14 @@ function addBlocks() {
   eventQueue = new RAPIER.EventQueue(true);
 }
 
-// const geometries = [
-//   new THREE.BoxGeometry( 1, 1, 1 ),
-//   new THREE.SphereGeometry( 0.5 ),
-// ]
-
-// function addBody() {
-//   const geometry = geometries[0];
-//   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
-//   const mesh = new THREE.Mesh(geometry, material);
-//
-//   mesh.castShadow = true;
-//   mesh.position.set(Math.random() * 2 - 1, Math.random() * 3 + 6, Math.random() * 2 - 1);
-//
-//   scene.add( mesh );
-//
-//   physics.addMesh(mesh, 1, 0.5);
-// }
-
-
-// let angle = 0;
 function animate(){
-  // const time = performance.now();
-  // const delta = ( time - performance.now() ) / 1000;
-  // // controls.object.position.y += ( velocity.y * delta ); // new behavior
-  //
-  // // oldControls.update();
-  // velocity.x -= velocity.x * 10.0 * delta;
-  // velocity.z -= velocity.z * 10.0 * delta;
-  //
-  // velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
-  //
-  // // direction.z = Number( moveForward ) - Number( moveBackward );
-  // // direction.x = Number( moveRight ) - Number( moveLeft );
-  // // direction.normalize(); // this ensures consistent movements in all directions
-  //
-  // // if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta;
-  // // if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta;
-  // if ( movement ) velocity.z -= movement.forward * 400.0 * delta;
-  // if ( movement ) velocity.x -= movement.right * 400.0 * delta;
-  //
-  // controls.moveRight( - velocity.x * delta );
-  // controls.moveForward( - velocity.z * delta );
-  //
-  // controls.object.position.y += ( velocity.y * delta ); // new behavior
-  // if(gameDestroyed.value){return}
-
   controls.update;
   renderer.render( scene, camera );
 
   if(world && characterController && !isPaused.value ) {
     const deltaTime = 1 /60;
-    // angle += 1 * deltaTime;
     // Character movement
     const speed = 2.5 * deltaTime;
-    // const localMove = new THREE.Vector3(
-    //     oldMovement.right,
-    //     0,
-    //     -oldMovement.forward
-    // );
     const localMove = new THREE.Vector3(movement.x, movement.y, movement.z);
     const rotation = player.userData.rigidBody.rotation();
     const quaternion = new THREE.Quaternion(
@@ -376,15 +210,6 @@ function animate(){
     localMove.applyQuaternion(quaternion);
     localMove.multiplyScalar(speed);
 
-    // const moveVector = new physics.RAPIER.Vector3(
-    //     localMove.x,
-    //     localMove.y,
-    //     localMove.z
-    // );
-
-    // const verticalMovement =
-    //     verticalVelocity * deltaTime;
-
     // Apply gravity
     verticalVelocity += gravity * deltaTime
 
@@ -393,8 +218,6 @@ function animate(){
         verticalVelocity * deltaTime,
         localMove.z
     );
-
-    // const moveVector = new physics.RAPIER.Vector3( movement.right * speed, 0,- movement.forward * speed);
 
     characterController.computeColliderMovement(
         player.userData.collider,
@@ -421,20 +244,6 @@ function animate(){
     };
 
     player.userData.rigidBody.setNextKinematicTranslation(nextPosition);
-    // const position = player.userData.collider.translation();
-    //
-    // position.x += translation.x;
-    // position.y += translation.y;
-    // position.z += translation.z;
-    //
-    // player.userData.collider.setTranslation(position);
-
-    // const rotation = new THREE.Quaternion();
-    // rotation.setFromEuler(
-    //     new THREE.Euler(0, angle, 0)
-    // );
-    //
-    // player.userData.rigidBody.setNextKinematicRotation(rotation);
 
     // Sync three.js mesh with rapier collider
     player.position.set(position.x, position.y, position.z);
@@ -444,7 +253,7 @@ function animate(){
     debugRenderer.update();
 
     world.step(eventQueue);
-    if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2, started) => {
+    if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2) => {
       const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
       if (playerTouchedFinish) {
         destroyGame();
@@ -462,13 +271,11 @@ function startGame(){
 
 function pauseGame(){
   if(!document.pointerLockElement){
-    // showMenu.value = true;
     isPaused.value = true;
   }
 }
 
 function resumeGame(){
-    // showMenu.value = false;
     isPaused.value = false;
 }
 
@@ -478,7 +285,6 @@ function resetGame(){
 }
 
 function destroyGame(){
-  // gameDestroyed.value = true;
   showMenu.value = true;
 
   renderer.setAnimationLoop(null);
@@ -489,14 +295,9 @@ function destroyGame(){
   window.removeEventListener('mousemove', onMouseMove);
   document.removeEventListener('pointerlockchange', pauseGame);
   window.removeEventListener('click', onMouseClick);
-  // eventQueue = null;
 
   world.free();
-  // world = null;
 
-  // scene.traverse((object) => {
-  //   object.clear();
-  // });
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.geometry.dispose();
@@ -513,27 +314,9 @@ function destroyGame(){
   camera.clear();
 
   eventQueue?.free();
-  // scene.remove();
-
-  // camera = null;
-  // renderer = null;
-  // scene = null;
 
   isPaused.value = false;
 }
-
-onMounted( () => {
-  // initializeThree();
-
-  // window.addEventListener('mousemove', onMouseMove);
-
-  // // Hides the pointer
-  // if(gameContainer.value) {
-  //   gameContainer.value.addEventListener( 'click', function () {
-  //     controls.lock();
-  //   } );
-  // }
-})
 
 class RapierDebugRenderer {
   private readonly mesh: THREE.LineSegments
