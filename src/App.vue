@@ -5,6 +5,7 @@ import {PointerLockControls} from 'three/examples/jsm/Addons.js'
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 import RAPIER from "@dimforge/rapier3d-compat";
+import Menu from "@/components/Menu.vue";
 
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
@@ -19,7 +20,7 @@ let stats: Stats;
 let controls: PointerLockControls;
 let yaw = 0;
 let player: THREE.Object3D<THREE.Object3DEventMap>;
-
+let movement = new THREE.Vector3();
 
 // Rapier
 let world: RAPIER.World;
@@ -27,7 +28,6 @@ let characterController: KinematicCharacterController;
 let debugRenderer: RapierDebugRenderer;
 let gravity = -9.81;
 let verticalVelocity = 0;
-let movement = new THREE.Vector3();
 let eventQueue: EventQueue | undefined;
 let playerHandle: number;
 let finishHandle: number;
@@ -91,11 +91,11 @@ async function initializeThree() {
 }
 
 async function initializePhysics() {
+  // This Vector indicates a constant force on the rigid body inside the world, pushing towards the negative y-axis.
   let gravity = { x: 0.0, y: -9.81, z: 0.0 };
   await RAPIER.init();
   world = new RAPIER.World(gravity);
 
-  // addBody();
   addCharacterController();
   addFloor();
   addBlocks();
@@ -122,6 +122,7 @@ function addCharacterController() {
   const colliderDesc = RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
   const collider = world.createCollider(colliderDesc, rigidBody);
 
+  // Save Rapier pointers in the Three.js player object
   player.userData.rigidBody = rigidBody;
   player.userData.collider = collider;
   playerHandle = player.userData.collider.handle;
@@ -141,23 +142,13 @@ function addFloor() {
 }
 
 function addBlocks() {
+  // Three.js
   const finishPointGeometry = new THREE.CylinderGeometry(1, 1,10);
   const material = new THREE.MeshStandardMaterial( { color: 0x00FF00, opacity:0.3, transparent: true } );
   const finishPointMesh = new THREE.Mesh(finishPointGeometry, material);
   finishPointMesh.position.set(0, 8.5, -12);
   scene.add(finishPointMesh);
 
-  const finishPointDesc = RAPIER.ColliderDesc
-      .cylinder(5,1)
-      .setTranslation(0, 8.5, -12)
-      .setSensor(true)
-      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-      .setActiveCollisionTypes(
-        RAPIER.ActiveCollisionTypes.DEFAULT |
-        RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
-      );
-
-  const finishPoint = world.createCollider(finishPointDesc);
   // Refactor eventually
   const platformMeshes = [
     { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
@@ -177,6 +168,18 @@ function addBlocks() {
   platformMeshes.forEach(el => el.mesh.position.copy(el.pos));
   platformMeshes.forEach(el => scene.add(el.mesh));
 
+  // Rapier
+  const finishPointDesc = RAPIER.ColliderDesc
+      .cylinder(5,1)
+      .setTranslation(0, 8.5, -12)
+      .setSensor(true)
+      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
+      .setActiveCollisionTypes(
+        RAPIER.ActiveCollisionTypes.DEFAULT |
+        RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
+      );
+
+  const finishPoint = world.createCollider(finishPointDesc);
 
   const platformColliders = [
     RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
@@ -186,6 +189,7 @@ function addBlocks() {
   ];
 
   platformColliders.forEach((el) => world.createCollider(el))
+
   finishHandle = finishPoint.handle;
   eventQueue = new RAPIER.EventQueue(true);
 }
@@ -317,6 +321,7 @@ function destroyGame(){
   isPaused.value = false;
 }
 
+// Standalone class for rapier
 class RapierDebugRenderer {
   private readonly mesh: THREE.LineSegments
 
@@ -338,7 +343,6 @@ class RapierDebugRenderer {
 
   update() {
     const { vertices, colors } = this.world.debugRender()
-
     this.mesh.geometry.setAttribute(
         'position',
         new THREE.BufferAttribute(vertices, 3)
@@ -352,6 +356,7 @@ class RapierDebugRenderer {
 
 }
 
+// three.js init
 function onMouseMove(event: MouseEvent) {
   if (!controls.isLocked) return;
 
@@ -371,6 +376,7 @@ function onMouseMove(event: MouseEvent) {
   });
 }
 
+// three.js init
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -378,6 +384,7 @@ function onWindowResize() {
   renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
+// three.js init
 function onKeydown(event: KeyboardEvent) {
   if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.setZ(-1);
   if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
@@ -386,31 +393,27 @@ function onKeydown(event: KeyboardEvent) {
   if ( event.key === ' ') verticalVelocity = 8;
 }
 
+// three.js init
 function onKeyUp(event: KeyboardEvent){
   if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
   if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
 }
 
+// three.js init
 function onMouseClick(){
   controls.lock();
 }
 </script>
 
 <template>
-  <div class="menu-container" v-if="showMenu">
-    <span class="title">Project Float</span>
-    <div class="menu">
-      <button @click="startGame()">Play</button>
-    </div>
-  </div>
-  <div class="menu-container paused" v-if="isPaused">
-    <span class="title">Paused</span>
-    <div class="menu">
-      <button @click="resumeGame()">Resume</button>
-      <button @click="resetGame()">Reset</button>
-      <button @click="destroyGame()">Quit</button>
-    </div>
-  </div>
+  <Menu
+    :is-paused="isPaused"
+    :show-menu="showMenu"
+    @start="startGame()"
+    @resume="resumeGame()"
+    @destroy="destroyGame()"
+    @reset="resetGame()"
+  />
   <div class="gameContainer">
     <canvas ref="gameCanvas"></canvas>
   </div>
@@ -418,42 +421,6 @@ function onMouseClick(){
 </template>
 
 <style scoped>
-.menu-container{
-  position: absolute;
-  background-color: rgb(0 0 0 / 100%);
-  width: 100vw;
-  height: 100vh;
-  display: grid;
-  grid-template-rows: min-content 1fr;
-}
-
-.menu-container.paused{
-  background-color: rgb(0 0 0 / 70%);
-}
-
-.menu{
-  display: flex;
-  justify-content: center;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 15vh;
-}
-
-.title{
-  color: white;
-  font-size: 4rem;
-  height: fit-content;
-  place-self: center;
-  margin-top: 10vh;
-}
-
-button{
-  font-size: 1.5rem;
-  height: 3rem;
-  width: 8rem;
-}
-
 .gameContainer{
   width: 100vw;
   height: 100vh;
