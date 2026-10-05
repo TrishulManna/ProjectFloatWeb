@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import * as THREE from 'three'
-import {ref, useTemplateRef} from 'vue'
-import {PointerLockControls} from 'three/examples/jsm/Addons.js'
-import Stats from "three/examples/jsm/libs/stats.module.js";
+import { ref, useTemplateRef} from 'vue'
 import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
 import RAPIER from "@dimforge/rapier3d-compat";
 import Menu from "@/components/Menu.vue";
+import GameRenderer from "@/game/GameRenderer.ts"
 
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
@@ -13,14 +12,8 @@ const showMenu = ref(true);
 const isPaused = ref(false);
 
 //Three.js
-let scene: THREE.Scene;
-let camera: THREE.PerspectiveCamera;
-let renderer: THREE.WebGLRenderer;
-let stats: Stats;
-let controls: PointerLockControls;
-let yaw = 0;
+let gameRenderer: GameRenderer;
 let player: THREE.Object3D<THREE.Object3DEventMap>;
-let movement = new THREE.Vector3();
 
 // Rapier
 let world: RAPIER.World;
@@ -33,45 +26,8 @@ let playerHandle: number;
 let finishHandle: number;
 
 async function initializeThree() {
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbfd1e5);
-
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100 );
-  camera.position.y = 1.5;
-
-  const ambient = new THREE.HemisphereLight(0x555555, 0xFFFFFF );
-
-  scene.add(ambient);
-
-  const light = new THREE.DirectionalLight(0xffffff,4 );
-
-  light.position.set(0, 12.5, 12.5 );
-  light.castShadow = true;
-  light.shadow.radius = 3;
-  light.shadow.blurSamples = 8;
-  light.shadow.mapSize.width = 1024;
-  light.shadow.mapSize.height = 1024;
-
-  const size = 10;
-  light.shadow.camera.left = - size;
-  light.shadow.camera.bottom = - size;
-  light.shadow.camera.right = size;
-  light.shadow.camera.top = size;
-  light.shadow.camera.near = 1;
-  light.shadow.camera.far = 50;
-
-  scene.add(light);
-
-  renderer = new THREE.WebGLRenderer({ antialias: true, canvas: gameCanvas.value! });
-  renderer.setPixelRatio( window.devicePixelRatio );
-  renderer.setSize( window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.setAnimationLoop( animate );
-
-  controls = new PointerLockControls(camera, renderer.domElement);
-  scene.add(controls.object);
-
-  stats = new Stats();
+  gameRenderer = new GameRenderer(gameCanvas.value!);
+  gameRenderer.renderer.setAnimationLoop( animate );
 
   await initializePhysics();
 
@@ -101,7 +57,7 @@ async function initializePhysics() {
   addBlocks();
 
   //Add both worlds to the debugger
-  debugRenderer = new RapierDebugRenderer(scene, world);
+  debugRenderer = new RapierDebugRenderer(gameRenderer.scene, world);
 }
 
 function addCharacterController() {
@@ -111,7 +67,7 @@ function addCharacterController() {
   player = new THREE.Mesh(geometry, material);
   player.castShadow = true;
   player.position.set(0, 0.8, 0);
-  scene.add(player);
+  gameRenderer.scene.add(player);
 
   // Rapier Character Capsule
   characterController = world.createCharacterController(0.01);
@@ -134,7 +90,7 @@ function addFloor() {
   const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
   const floor = new THREE.Mesh( geometry, material );
   floor.receiveShadow = true;
-  scene.add( floor );
+  gameRenderer.scene.add( floor );
 
   // Rapier
   const colliderDesc = RAPIER.ColliderDesc.cuboid(10,0.1,10);
@@ -147,7 +103,7 @@ function addBlocks() {
   const material = new THREE.MeshStandardMaterial( { color: 0x00FF00, opacity:0.3, transparent: true } );
   const finishPointMesh = new THREE.Mesh(finishPointGeometry, material);
   finishPointMesh.position.set(0, 8.5, -12);
-  scene.add(finishPointMesh);
+  gameRenderer.scene.add(finishPointMesh);
 
   // Refactor eventually
   const platformMeshes = [
@@ -166,7 +122,7 @@ function addBlocks() {
   ]
 
   platformMeshes.forEach(el => el.mesh.position.copy(el.pos));
-  platformMeshes.forEach(el => scene.add(el.mesh));
+  platformMeshes.forEach(el => gameRenderer.scene.add(el.mesh));
 
   // Rapier
   const finishPointDesc = RAPIER.ColliderDesc
@@ -195,13 +151,13 @@ function addBlocks() {
 }
 
 function animate(){
-  renderer.render( scene, camera );
+  gameRenderer.renderer.render( gameRenderer.scene, gameRenderer.camera );
 
   if(world && characterController && !isPaused.value ) {
     const deltaTime = 1 /60;
     // Character movement
     const speed = 2.5 * deltaTime;
-    const localMove = new THREE.Vector3(movement.x, movement.y, movement.z);
+    const localMove = new THREE.Vector3(gameRenderer.movement.x, gameRenderer.movement.y, gameRenderer.movement.z);
     const rotation = player.userData.rigidBody.rotation();
     const quaternion = new THREE.Quaternion(
         rotation.x,
@@ -250,7 +206,7 @@ function animate(){
 
     // Sync three.js mesh with rapier collider
     player.position.set(position.x, position.y, position.z);
-    camera.position.set(position.x, position.y + 0.5, position.z);
+    gameRenderer.camera.position.set(position.x, position.y + 0.5, position.z);
 
     //DEBUG
     debugRenderer.update();
@@ -264,7 +220,7 @@ function animate(){
     })
 
   }
-  stats.update();
+  gameRenderer.stats.update();
 }
 
 function startGame(){
@@ -290,7 +246,7 @@ function resetGame(){
 function destroyGame(){
   showMenu.value = true;
 
-  renderer.setAnimationLoop(null);
+  gameRenderer.renderer.setAnimationLoop(null);
 
   window.removeEventListener( 'keydown', onKeydown)
   window.removeEventListener( 'keyup', onKeyUp);
@@ -301,7 +257,7 @@ function destroyGame(){
 
   world.free();
 
-  scene.traverse((object) => {
+  gameRenderer.scene.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.geometry.dispose();
       if (Array.isArray(object.material)) {
@@ -311,10 +267,10 @@ function destroyGame(){
       }
     }
   });
-  scene.clear();
+  gameRenderer.scene.clear();
 
-  renderer.dispose();
-  camera.clear();
+  gameRenderer.renderer.dispose();
+  gameRenderer.camera.clear();
 
   eventQueue?.free();
 
@@ -358,14 +314,14 @@ class RapierDebugRenderer {
 
 // three.js init
 function onMouseMove(event: MouseEvent) {
-  if (!controls.isLocked) return;
+  if (!gameRenderer.controls.isLocked) return;
 
-  yaw -= event.movementX * 0.002;
+  gameRenderer.yaw -= event.movementX * 0.002;
 
   const rotation = new THREE.Quaternion();
 
   rotation.setFromEuler(
-      new THREE.Euler(0, yaw, 0)
+      new THREE.Euler(0, gameRenderer.yaw, 0)
   );
 
   player.userData.rigidBody.setNextKinematicRotation({
@@ -378,31 +334,32 @@ function onMouseMove(event: MouseEvent) {
 
 // three.js init
 function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  gameRenderer.camera.aspect = window.innerWidth / window.innerHeight;
+  gameRenderer.camera.updateProjectionMatrix();
 
-  renderer.setSize( window.innerWidth, window.innerHeight );
+  gameRenderer.renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
 // three.js init
 function onKeydown(event: KeyboardEvent) {
-  if ( event.key === 'w' || event.key === 'ArrowUp' ) movement.setZ(-1);
-  if ( event.key === 's' || event.key === 'ArrowDown' ) movement.setZ(1);
-  if ( event.key === 'a' || event.key === 'ArrowLeft' ) movement.setX(-1);
-  if ( event.key === 'd' || event.key === 'ArrowRight' ) movement.setX(1);
+  if ( event.key === 'w' || event.key === 'ArrowUp' ) gameRenderer.movement.setZ(-1);
+  if ( event.key === 's' || event.key === 'ArrowDown' ) gameRenderer.movement.setZ(1);
+  if ( event.key === 'a' || event.key === 'ArrowLeft' ) gameRenderer.movement.setX(-1);
+  if ( event.key === 'd' || event.key === 'ArrowRight' ) gameRenderer.movement.setX(1);
   if ( event.key === ' ') verticalVelocity = 8;
 }
 
 // three.js init
 function onKeyUp(event: KeyboardEvent){
-  if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) movement.setZ(0);
-  if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) movement.setX(0);
+  if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) gameRenderer.movement.setZ(0);
+  if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) gameRenderer.movement.setX(0);
 }
 
 // three.js init
 function onMouseClick(){
-  controls.lock();
+  gameRenderer.controls.lock();
 }
+
 </script>
 
 <template>
