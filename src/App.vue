@@ -13,7 +13,6 @@ const isPaused = ref(false);
 
 //Three.js
 let gameRenderer: GameRenderer;
-let player: THREE.Object3D<THREE.Object3DEventMap>;
 
 // Rapier
 let world: RAPIER.World;
@@ -61,14 +60,6 @@ async function initializePhysics() {
 }
 
 function addCharacterController() {
-  // Three.js Character Capsule
-  const geometry = new THREE.CapsuleGeometry(0.3, 1, 8, 8);
-  const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
-  player = new THREE.Mesh(geometry, material);
-  player.castShadow = true;
-  player.position.set(0, 0.8, 0);
-  gameRenderer.scene.add(player);
-
   // Rapier Character Capsule
   characterController = world.createCharacterController(0.01);
   characterController.setApplyImpulsesToDynamicBodies(true);
@@ -79,51 +70,18 @@ function addCharacterController() {
   const collider = world.createCollider(colliderDesc, rigidBody);
 
   // Save Rapier pointers in the Three.js player object
-  player.userData.rigidBody = rigidBody;
-  player.userData.collider = collider;
-  playerHandle = player.userData.collider.handle;
+  gameRenderer.player.userData.rigidBody = rigidBody;
+  gameRenderer.player.userData.collider = collider;
+  playerHandle = gameRenderer.player.userData.collider.handle;
 }
 
 function addFloor() {
-  // Three.js
-  const geometry = new THREE.BoxGeometry(20, 0.2, 20 );
-  const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
-  const floor = new THREE.Mesh( geometry, material );
-  floor.receiveShadow = true;
-  gameRenderer.scene.add( floor );
-
   // Rapier
   const colliderDesc = RAPIER.ColliderDesc.cuboid(10,0.1,10);
   world.createCollider(colliderDesc);
 }
 
 function addBlocks() {
-  // Three.js
-  const finishPointGeometry = new THREE.CylinderGeometry(1, 1,10);
-  const material = new THREE.MeshStandardMaterial( { color: 0x00FF00, opacity:0.3, transparent: true } );
-  const finishPointMesh = new THREE.Mesh(finishPointGeometry, material);
-  finishPointMesh.position.set(0, 8.5, -12);
-  gameRenderer.scene.add(finishPointMesh);
-
-  // Refactor eventually
-  const platformMeshes = [
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
-      pos: new THREE.Vector3(0,0,-2)
-    },
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
-      pos: new THREE.Vector3(0,1,-5)
-    },
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
-      pos: new THREE.Vector3(0,2,-8)
-    },
-    { mesh: new THREE.Mesh(new THREE.BoxGeometry(8, 1,4), new THREE.MeshStandardMaterial( { color: 0x808080 })),
-      pos: new THREE.Vector3(0,3,-12)
-    },
-  ]
-
-  platformMeshes.forEach(el => el.mesh.position.copy(el.pos));
-  platformMeshes.forEach(el => gameRenderer.scene.add(el.mesh));
-
   // Rapier
   const finishPointDesc = RAPIER.ColliderDesc
       .cylinder(5,1)
@@ -158,7 +116,7 @@ function animate(){
     // Character movement
     const speed = 2.5 * deltaTime;
     const localMove = new THREE.Vector3(gameRenderer.movement.x, gameRenderer.movement.y, gameRenderer.movement.z);
-    const rotation = player.userData.rigidBody.rotation();
+    const rotation = gameRenderer.player.userData.rigidBody.rotation();
     const quaternion = new THREE.Quaternion(
         rotation.x,
         rotation.y,
@@ -179,7 +137,7 @@ function animate(){
     );
 
     characterController.computeColliderMovement(
-        player.userData.collider,
+        gameRenderer.player.userData.collider,
         moveVector,
         undefined,
         undefined,
@@ -194,7 +152,7 @@ function animate(){
 
     // Read the result
     const translation = characterController.computedMovement();
-    const position = player.userData.rigidBody.translation();
+    const position = gameRenderer.player.userData.rigidBody.translation();
 
     const nextPosition = {
       x: position.x + translation.x,
@@ -202,10 +160,10 @@ function animate(){
       z: position.z + translation.z
     };
 
-    player.userData.rigidBody.setNextKinematicTranslation(nextPosition);
+    gameRenderer.player.userData.rigidBody.setNextKinematicTranslation(nextPosition);
 
     // Sync three.js mesh with rapier collider
-    player.position.set(position.x, position.y, position.z);
+    gameRenderer.player.position.set(position.x, position.y, position.z);
     gameRenderer.camera.position.set(position.x, position.y + 0.5, position.z);
 
     //DEBUG
@@ -324,7 +282,7 @@ function onMouseMove(event: MouseEvent) {
       new THREE.Euler(0, gameRenderer.yaw, 0)
   );
 
-  player.userData.rigidBody.setNextKinematicRotation({
+  gameRenderer.player.userData.rigidBody.setNextKinematicRotation({
     x: rotation.x,
     y: rotation.y,
     z: rotation.z,

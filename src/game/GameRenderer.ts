@@ -9,7 +9,7 @@ export default class GameRenderer {
     stats: Stats;
     controls: PointerLockControls;
     yaw = 0;
-    // player: THREE.Object3D<THREE.Object3DEventMap>;
+    player: THREE.Object3D<THREE.Object3DEventMap>;
     movement = new THREE.Vector3();
 
     constructor(gameCanvas: HTMLCanvasElement){
@@ -19,6 +19,43 @@ export default class GameRenderer {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100 );
         this.camera.position.y = 1.5;
 
+        this.renderer = this.createRenderer(gameCanvas);
+
+        this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
+        this.scene.add(this.controls.object);
+
+        this.stats = new Stats();
+
+        this.player = this.createCharacterController();
+        this.scene.add(this.player);
+
+        this.addLight();
+        this.addFloor();
+        this.addBlocks();
+    }
+
+    private createCharacterController() {
+        const geometry = new THREE.CapsuleGeometry(0.3, 1, 8, 8);
+        const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
+        const player = new THREE.Mesh(geometry, material);
+
+        player.castShadow = true;
+        player.position.set(0, 0.8, 0);
+
+        return player;
+    }
+
+    private createRenderer(gameCanvas: HTMLCanvasElement) {
+        const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: gameCanvas });
+
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize( window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+
+        return renderer;
+    }
+
+    private addLight(){
         const ambient = new THREE.HemisphereLight(0x555555, 0xFFFFFF );
 
         this.scene.add(ambient);
@@ -41,18 +78,42 @@ export default class GameRenderer {
         light.shadow.camera.far = 50;
 
         this.scene.add(light);
+    }
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, canvas: gameCanvas });
-        this.renderer.setPixelRatio( window.devicePixelRatio );
-        this.renderer.setSize( window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
+    private addFloor() {
+        const geometry = new THREE.BoxGeometry(20, 0.2, 20 );
+        const material = new THREE.MeshStandardMaterial( { color: 0xFFFFFF } );
+        const floor = new THREE.Mesh( geometry, material );
 
-        //Should be done separately?
-        // this.renderer.setAnimationLoop( animate );
+        floor.receiveShadow = true;
+        this.scene.add( floor );
+    }
 
-        this.controls = new PointerLockControls(this.camera, this.renderer.domElement);
-        this.scene.add(this.controls.object);
+    private addBlocks() {
+        const finishPointGeometry = new THREE.CylinderGeometry(1, 1,10);
+        const material = new THREE.MeshStandardMaterial( { color: 0x00FF00, opacity:0.3, transparent: true } );
+        const finishPointMesh = new THREE.Mesh(finishPointGeometry, material);
 
-        this.stats = new Stats();
+        finishPointMesh.position.set(0, 8.5, -12);
+        this.scene.add(finishPointMesh);
+
+        // Refactor eventually
+        const platformMeshes = [
+            { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+                pos: new THREE.Vector3(0,0,-2)
+            },
+            { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+                pos: new THREE.Vector3(0,1,-5)
+            },
+            { mesh: new THREE.Mesh(new THREE.BoxGeometry(2, 1,2), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+                pos: new THREE.Vector3(0,2,-8)
+            },
+            { mesh: new THREE.Mesh(new THREE.BoxGeometry(8, 1,4), new THREE.MeshStandardMaterial( { color: 0x808080 })),
+                pos: new THREE.Vector3(0,3,-12)
+            },
+        ]
+
+        platformMeshes.forEach(el => el.mesh.position.copy(el.pos));
+        platformMeshes.forEach(el => this.scene.add(el.mesh));
     }
 }
