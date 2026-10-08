@@ -11,6 +11,7 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@dimforge/rapier3d": "^0.21.0",
     "three": "^0.185.1",
     "vue": "^3.5.40"
   },
