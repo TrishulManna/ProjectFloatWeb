@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import * as THREE from 'three'
 import { ref, useTemplateRef} from 'vue'
-import type { EventQueue, KinematicCharacterController} from "@dimforge/rapier3d-compat";
-import RAPIER from "@dimforge/rapier3d-compat";
+import * as RAPIER from "@dimforge/rapier3d-compat";
 import Menu from "@/components/Menu.vue";
 import GameRenderer from "@/game/GameRenderer.ts"
+import GamePhysics from "@/game/GamePhysics.ts";
 
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
@@ -15,20 +15,14 @@ const isPaused = ref(false);
 let gameRenderer: GameRenderer;
 
 // Rapier
-let world: RAPIER.World;
-let characterController: KinematicCharacterController;
+let gamePhysics: GamePhysics;
 let debugRenderer: RapierDebugRenderer;
-let gravity = -9.81;
-let verticalVelocity = 0;
-let eventQueue: EventQueue | undefined;
-let playerHandle: number;
-let finishHandle: number;
 
-async function initializeThree() {
+function initializeThree() {
   gameRenderer = new GameRenderer(gameCanvas.value!);
   gameRenderer.renderer.setAnimationLoop( animate );
 
-  await initializePhysics();
+  // initializePhysics();
 
   onWindowResize();
 
@@ -46,77 +40,22 @@ async function initializeThree() {
 }
 
 async function initializePhysics() {
-  // This Vector indicates a constant force on the rigid body inside the world, pushing towards the negative y-axis.
-  let gravity = { x: 0.0, y: -9.81, z: 0.0 };
+  // Rapier is a WebAssembly module, it has to be loaded asynchronously
+  // Don’t continue until Rapier’s actual physics engine is ready
   await RAPIER.init();
-  world = new RAPIER.World(gravity);
-
-  addCharacterController();
-  addFloor();
-  addBlocks();
+  gamePhysics = new GamePhysics();
 
   //Add both worlds to the debugger
-  debugRenderer = new RapierDebugRenderer(gameRenderer.scene, world);
-}
-
-function addCharacterController() {
-  // Rapier Character Capsule
-  characterController = world.createCharacterController(0.01);
-  characterController.setApplyImpulsesToDynamicBodies(true);
-  characterController.setCharacterMass(3);
-  const rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased();
-  const rigidBody = world.createRigidBody(rigidBodyDesc);
-  const colliderDesc = RAPIER.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.8, 0);
-  const collider = world.createCollider(colliderDesc, rigidBody);
-
-  // Save Rapier pointers in the Three.js player object
-  gameRenderer.player.userData.rigidBody = rigidBody;
-  gameRenderer.player.userData.collider = collider;
-  playerHandle = gameRenderer.player.userData.collider.handle;
-}
-
-function addFloor() {
-  // Rapier
-  const colliderDesc = RAPIER.ColliderDesc.cuboid(10,0.1,10);
-  world.createCollider(colliderDesc);
-}
-
-function addBlocks() {
-  // Rapier
-  const finishPointDesc = RAPIER.ColliderDesc
-      .cylinder(5,1)
-      .setTranslation(0, 8.5, -12)
-      .setSensor(true)
-      .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-      .setActiveCollisionTypes(
-        RAPIER.ActiveCollisionTypes.DEFAULT |
-        RAPIER.ActiveCollisionTypes.KINEMATIC_FIXED
-      );
-
-  const finishPoint = world.createCollider(finishPointDesc);
-
-  const platformColliders = [
-    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 0, -2),
-    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 1, -5),
-    RAPIER.ColliderDesc.cuboid(1,0.5,1).setTranslation(0, 2, -8),
-    RAPIER.ColliderDesc.cuboid(4,0.5,2).setTranslation(0, 3, -12),
-  ];
-
-  platformColliders.forEach((el) => world.createCollider(el))
-
-  finishHandle = finishPoint.handle;
-  eventQueue = new RAPIER.EventQueue(true);
+  debugRenderer = new RapierDebugRenderer(gameRenderer.scene, gamePhysics.world);
 }
 
 function animate(){
   gameRenderer.renderer.render( gameRenderer.scene, gameRenderer.camera );
 
-  if(world && characterController && !isPaused.value ) {
+  if(gamePhysics && !isPaused.value ) {
     const deltaTime = 1 /60;
-    // Character movement
     const speed = 2.5 * deltaTime;
-    const localMove = new THREE.Vector3(gameRenderer.movement.x, gameRenderer.movement.y, gameRenderer.movement.z);
-    const rotation = gameRenderer.player.userData.rigidBody.rotation();
+    const rotation = gamePhysics.characterRigidBody.rotation();
     const quaternion = new THREE.Quaternion(
         rotation.x,
         rotation.y,
@@ -124,35 +63,38 @@ function animate(){
         rotation.w
     );
 
+    // Apply gravity
+    gamePhysics.verticalVelocity += gamePhysics.gravity * deltaTime;
+
+    // Character movement
+    // Currently only converting to a THREE vector3 and back to Rapier to use the two threejs native functions
+    const localMove = new THREE.Vector3(gamePhysics.movement.x, gamePhysics.movement.y, gamePhysics.movement.z);
     localMove.applyQuaternion(quaternion);
     localMove.multiplyScalar(speed);
 
-    // Apply gravity
-    verticalVelocity += gravity * deltaTime
-
     const moveVector = new RAPIER.Vector3(
         localMove.x,
-        verticalVelocity * deltaTime,
+        gamePhysics.verticalVelocity * deltaTime,
         localMove.z
     );
 
-    characterController.computeColliderMovement(
-        gameRenderer.player.userData.collider,
+    gamePhysics.characterController.computeColliderMovement(
+        gamePhysics.characterCollider,
         moveVector,
         undefined,
         undefined,
         (collider) => !collider.isSensor()
     );
 
-    const grounded = characterController.computedGrounded();
+    const grounded = gamePhysics.characterController.computedGrounded();
     // Do not apply / accumulate gravity when grounded
-    if(grounded && verticalVelocity < 0) {
-      verticalVelocity = 0;
+    if(grounded && gamePhysics.verticalVelocity < 0) {
+      gamePhysics.verticalVelocity = 0;
     }
 
     // Read the result
-    const translation = characterController.computedMovement();
-    const position = gameRenderer.player.userData.rigidBody.translation();
+    const translation = gamePhysics.characterController.computedMovement();
+    const position = gamePhysics.characterRigidBody.translation();
 
     const nextPosition = {
       x: position.x + translation.x,
@@ -160,7 +102,7 @@ function animate(){
       z: position.z + translation.z
     };
 
-    gameRenderer.player.userData.rigidBody.setNextKinematicTranslation(nextPosition);
+    gamePhysics.characterRigidBody.setNextKinematicTranslation(nextPosition);
 
     // Sync three.js mesh with rapier collider
     gameRenderer.player.position.set(position.x, position.y, position.z);
@@ -169,8 +111,10 @@ function animate(){
     //DEBUG
     debugRenderer.update();
 
-    world.step(eventQueue);
-    if(eventQueue) eventQueue.drainCollisionEvents((collider1, collider2) => {
+    gamePhysics.world.step(gamePhysics.eventQueue);
+    if(gamePhysics.eventQueue) gamePhysics.eventQueue.drainCollisionEvents((collider1: number, collider2: number) => {
+      const playerHandle = gamePhysics.characterCollider.handle;
+      const finishHandle = gamePhysics.finishPoint.handle;
       const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
       if (playerTouchedFinish) {
         destroyGame();
@@ -184,6 +128,7 @@ function animate(){
 function startGame(){
   showMenu.value = false;
   initializeThree();
+  initializePhysics();
 }
 
 function pauseGame(){
@@ -213,7 +158,7 @@ function destroyGame(){
   document.removeEventListener('pointerlockchange', pauseGame);
   window.removeEventListener('click', onMouseClick);
 
-  world.free();
+  gamePhysics.world.free();
 
   gameRenderer.scene.traverse((object) => {
     if (object instanceof THREE.Mesh) {
@@ -230,7 +175,7 @@ function destroyGame(){
   gameRenderer.renderer.dispose();
   gameRenderer.camera.clear();
 
-  eventQueue?.free();
+  gamePhysics.eventQueue?.free();
 
   isPaused.value = false;
 }
@@ -267,7 +212,6 @@ class RapierDebugRenderer {
         new THREE.BufferAttribute(colors, 4)
     )
   }
-
 }
 
 // three.js init
@@ -282,7 +226,7 @@ function onMouseMove(event: MouseEvent) {
       new THREE.Euler(0, gameRenderer.yaw, 0)
   );
 
-  gameRenderer.player.userData.rigidBody.setNextKinematicRotation({
+  gamePhysics.characterRigidBody.setNextKinematicRotation({
     x: rotation.x,
     y: rotation.y,
     z: rotation.z,
@@ -300,17 +244,17 @@ function onWindowResize() {
 
 // three.js init
 function onKeydown(event: KeyboardEvent) {
-  if ( event.key === 'w' || event.key === 'ArrowUp' ) gameRenderer.movement.setZ(-1);
-  if ( event.key === 's' || event.key === 'ArrowDown' ) gameRenderer.movement.setZ(1);
-  if ( event.key === 'a' || event.key === 'ArrowLeft' ) gameRenderer.movement.setX(-1);
-  if ( event.key === 'd' || event.key === 'ArrowRight' ) gameRenderer.movement.setX(1);
-  if ( event.key === ' ') verticalVelocity = 8;
+  if ( event.key === 'w' || event.key === 'ArrowUp' ) gamePhysics.movement.z = -1;
+  if ( event.key === 's' || event.key === 'ArrowDown' ) gamePhysics.movement.z = 1;
+  if ( event.key === 'a' || event.key === 'ArrowLeft' ) gamePhysics.movement.x = -1;
+  if ( event.key === 'd' || event.key === 'ArrowRight' ) gamePhysics.movement.x = 1;
+  if ( event.key === ' ') gamePhysics.verticalVelocity = 8;
 }
 
 // three.js init
 function onKeyUp(event: KeyboardEvent){
-  if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) gameRenderer.movement.setZ(0);
-  if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) gameRenderer.movement.setX(0);
+  if ( event.key === 'w' || event.key === 's' || event.key === 'ArrowUp' || event.key === 'ArrowDown' ) gamePhysics.movement.z = 0;
+  if ( event.key === 'a' || event.key === 'd' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' ) gamePhysics.movement.x = 0;
 }
 
 // three.js init

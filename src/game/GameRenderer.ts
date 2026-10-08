@@ -10,7 +10,6 @@ export default class GameRenderer {
     controls: PointerLockControls;
     yaw = 0;
     player: THREE.Object3D<THREE.Object3DEventMap>;
-    movement = new THREE.Vector3();
 
     constructor(gameCanvas: HTMLCanvasElement){
         this.scene = new THREE.Scene();
