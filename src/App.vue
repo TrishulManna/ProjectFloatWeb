@@ -5,6 +5,9 @@ import * as RAPIER from "@dimforge/rapier3d-compat";
 import Menu from "@/components/Menu.vue";
 import GameRenderer from "@/game/GameRenderer.ts"
 import GamePhysics from "@/game/GamePhysics.ts";
+import StateMachine from "@/game/fsm/StateMachine.ts";
+import {PLAYER_STATE_TYPE} from "@/game/fsm/PlayerStateType.ts";
+import IdleState from "@/game/fsm/playerStates/idleState.ts";
 
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
@@ -17,6 +20,8 @@ let gameRenderer: GameRenderer;
 // Rapier
 let gamePhysics: GamePhysics;
 let debugRenderer: RapierDebugRenderer;
+
+let playerStateMachine: StateMachine;
 
 function initializeThree() {
   gameRenderer = new GameRenderer(gameCanvas.value!);
@@ -47,6 +52,9 @@ async function initializePhysics() {
 
   //Add both worlds to the debugger
   debugRenderer = new RapierDebugRenderer(gameRenderer.scene, gamePhysics.world);
+
+  //Initial start of the player state
+  playerStateMachine.changeState(PLAYER_STATE_TYPE.Idle, gamePhysics);
 }
 
 function animate(){
@@ -123,12 +131,17 @@ function animate(){
 
   }
   gameRenderer.stats.update();
+
+  playerStateMachine.update();
 }
 
 function startGame(){
   showMenu.value = false;
   initializeThree();
   initializePhysics();
+
+  playerStateMachine = new StateMachine();
+  playerStateMachine.addState(PLAYER_STATE_TYPE.Idle, new IdleState());
 }
 
 function pauseGame(){

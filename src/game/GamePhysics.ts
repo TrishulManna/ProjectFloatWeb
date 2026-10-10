@@ -67,4 +67,8 @@ export default class GamePhysics {
 
         return this.world.createCollider(finishPointDesc);
     }
+
+    // idle(){
+    //     console.log('entering Idle')
+    // }
 }
