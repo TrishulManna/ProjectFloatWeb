@@ -8,6 +8,8 @@ import GamePhysics from "@/game/GamePhysics.ts";
 import StateMachine from "@/game/fsm/StateMachine.ts";
 import {PLAYER_STATE_TYPE} from "@/game/fsm/PlayerStateType.ts";
 import IdleState from "@/game/fsm/playerStates/idleState.ts";
+import MoveState from "@/game/fsm/playerStates/moveState.ts";
+import JumpState from "@/game/fsm/playerStates/jumpState.ts";
 
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
@@ -71,8 +73,21 @@ function animate(){
         rotation.w
     );
 
+    if((gamePhysics.movement.x !== 0 || gamePhysics.movement.z !== 0) && gamePhysics.verticalVelocity === 0){
+      playerStateMachine.changeState(PLAYER_STATE_TYPE.Move, gamePhysics);
+    }
+
+    if(gamePhysics.verticalVelocity !== 0){
+      playerStateMachine.changeState(PLAYER_STATE_TYPE.Jump, gamePhysics);
+    }
+
+    if(gamePhysics.movement.x === 0 && gamePhysics.verticalVelocity === 0 && gamePhysics.movement.z === 0){
+      playerStateMachine.changeState(PLAYER_STATE_TYPE.Idle, gamePhysics);
+    }
+
     // Apply gravity
     gamePhysics.verticalVelocity += gamePhysics.gravity * deltaTime;
+
 
     // Character movement
     // Currently only converting to a THREE vector3 and back to Rapier to use the two threejs native functions
@@ -142,6 +157,8 @@ function startGame(){
 
   playerStateMachine = new StateMachine();
   playerStateMachine.addState(PLAYER_STATE_TYPE.Idle, new IdleState());
+  playerStateMachine.addState(PLAYER_STATE_TYPE.Move, new MoveState());
+  playerStateMachine.addState(PLAYER_STATE_TYPE.Jump, new JumpState());
 }
 
 function pauseGame(){

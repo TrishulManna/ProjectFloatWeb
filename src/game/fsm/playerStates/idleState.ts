@@ -11,7 +11,7 @@ export default class IdleState implements IState{
         console.log('entering Idle')
     }
     execute() {
-        console.log('executing Idle')
+        // console.log('executing Idle')
     }
     exit() {
         console.log('exiting Idle')
