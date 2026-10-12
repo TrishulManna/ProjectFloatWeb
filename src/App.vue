@@ -118,9 +118,9 @@ function animate(){
         (collider) => !collider.isSensor()
     );
 
-    const grounded = gamePhysics.characterController.computedGrounded();
+    gamePhysics.grounded = gamePhysics.characterController.computedGrounded();
     // Do not apply / accumulate gravity when grounded
-    if(grounded && gamePhysics.verticalVelocity < 0) {
+    if(gamePhysics.grounded && gamePhysics.verticalVelocity < 0) {
       gamePhysics.verticalVelocity = 0;
     }
 
@@ -148,6 +148,7 @@ function animate(){
       const playerHandle = gamePhysics.characterCollider.handle;
       const finishHandle = gamePhysics.finishPoint.handle;
       const playerTouchedFinish = (collider1 === playerHandle && collider2 === finishHandle) || (collider1 === finishHandle && collider2 === playerHandle)
+
       if (playerTouchedFinish) {
         destroyGame();
       }
@@ -253,7 +254,7 @@ function onKeydown(event: KeyboardEvent) {
   if ( event.key === 's' || event.key === 'ArrowDown' ) gamePhysics.movement.z = 1;
   if ( event.key === 'a' || event.key === 'ArrowLeft' ) gamePhysics.movement.x = -1;
   if ( event.key === 'd' || event.key === 'ArrowRight' ) gamePhysics.movement.x = 1;
-  if ( event.key === ' ') gamePhysics.verticalVelocity = 8;
+  if ( event.key === ' ' && gamePhysics.grounded) gamePhysics.verticalVelocity = 8;
 }
 
 // three.js init

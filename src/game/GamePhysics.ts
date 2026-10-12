@@ -11,6 +11,7 @@ export default class GamePhysics {
     characterCollider: RAPIER.Collider;
     finishPoint: RAPIER.Collider;
     movement = new RAPIER.Vector3(0,0,0);
+    grounded= false;
 
     constructor() {
         // This Vector indicates a constant force on the rigid body inside the world, pushing towards the negative y-axis.
