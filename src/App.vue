@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import * as THREE from 'three'
-import { ref, useTemplateRef} from 'vue'
+import {reactive, ref, useTemplateRef} from 'vue'
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import Menu from "@/components/Menu.vue";
 import GameRenderer from "@/game/GameRenderer.ts"
 import GamePhysics from "@/game/GamePhysics.ts";
 import StateMachine from "@/game/fsm/StateMachine.ts";
+
 import {PLAYER_STATE_TYPE} from "@/game/fsm/PlayerStateType.ts";
 import IdleState from "@/game/fsm/playerStates/idleState.ts";
 import MoveState from "@/game/fsm/playerStates/moveState.ts";
 import JumpState from "@/game/fsm/playerStates/jumpState.ts";
 
+import {GAME_STATE_TYPE} from "@/game/fsm/GameStateType.ts";
+import InactiveState from "@/game/fsm/gameStates/inactiveState.ts";
+import PausedState from "@/game/fsm/gameStates/pausedState.ts";
+import ActiveState from "@/game/fsm/gameStates/activeState.ts";
+
 // Vue.js
 const gameCanvas = useTemplateRef('gameCanvas');
-const showMenu = ref(true);
-const isPaused = ref(false);
 
 //Three.js
 let gameRenderer: GameRenderer;
@@ -24,12 +28,16 @@ let gamePhysics: GamePhysics;
 let debugRenderer: RapierDebugRenderer;
 
 let playerStateMachine: StateMachine;
+const gameStateMachine = reactive(new StateMachine());
+
+gameStateMachine.addState(GAME_STATE_TYPE.Inactive, new InactiveState());
+gameStateMachine.addState(GAME_STATE_TYPE.Active, new ActiveState());
+gameStateMachine.addState(GAME_STATE_TYPE.Paused, new PausedState());
+gameStateMachine.changeState(GAME_STATE_TYPE.Inactive);
 
 function initializeThree() {
   gameRenderer = new GameRenderer(gameCanvas.value!);
   gameRenderer.renderer.setAnimationLoop( animate );
-
-  // initializePhysics();
 
   onWindowResize();
 
@@ -62,7 +70,7 @@ async function initializePhysics() {
 function animate(){
   gameRenderer.renderer.render( gameRenderer.scene, gameRenderer.camera );
 
-  if(gamePhysics && !isPaused.value ) {
+  if(gamePhysics && !gameStateMachine.isOnState(GAME_STATE_TYPE.Paused) ) {
     const deltaTime = 1 /60;
     const speed = 2.5 * deltaTime;
     const rotation = gamePhysics.characterRigidBody.rotation();
@@ -151,7 +159,6 @@ function animate(){
 }
 
 function startGame(){
-  showMenu.value = false;
   initializeThree();
   initializePhysics();
 
@@ -159,16 +166,19 @@ function startGame(){
   playerStateMachine.addState(PLAYER_STATE_TYPE.Idle, new IdleState());
   playerStateMachine.addState(PLAYER_STATE_TYPE.Move, new MoveState());
   playerStateMachine.addState(PLAYER_STATE_TYPE.Jump, new JumpState());
+
+  gameStateMachine.changeState(GAME_STATE_TYPE.Active);
 }
 
 function pauseGame(){
   if(!document.pointerLockElement){
-    isPaused.value = true;
+    gameStateMachine.changeState(GAME_STATE_TYPE.Paused);
   }
 }
 
 function resumeGame(){
-    isPaused.value = false;
+    // isPaused.value = false;
+  gameStateMachine.changeState(GAME_STATE_TYPE.Active);
 }
 
 function resetGame(){
@@ -177,7 +187,7 @@ function resetGame(){
 }
 
 function destroyGame(){
-  showMenu.value = true;
+  gameStateMachine.changeState(GAME_STATE_TYPE.Inactive);
 
   gameRenderer.renderer.setAnimationLoop(null);
 
@@ -207,7 +217,6 @@ function destroyGame(){
 
   gamePhysics.eventQueue?.free();
 
-  isPaused.value = false;
 }
 
 // Standalone class for rapier
@@ -296,8 +305,8 @@ function onMouseClick(){
 
 <template>
   <Menu
-    :is-paused="isPaused"
-    :show-menu="showMenu"
+    :is-paused="gameStateMachine.isOnState(GAME_STATE_TYPE.Paused)"
+    :show-menu="gameStateMachine.isOnState(GAME_STATE_TYPE.Inactive)"
     @start="startGame()"
     @resume="resumeGame()"
     @destroy="destroyGame()"

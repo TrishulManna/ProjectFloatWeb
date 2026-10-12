@@ -1,29 +1,20 @@
 import type {IState} from "@/game/fsm/IState.ts";
 import {type PlayerStateType} from "@/game/fsm/PlayerStateType.ts";
 import type GamePhysics from "@/game/GamePhysics.ts";
+import type {GameStateType} from "@/game/fsm/GameStateType.ts";
 
-// type StateParams = Record<PlayerStateType, IState>;
+type StateMachineTypes = PlayerStateType | GameStateType;
 
 export default class StateMachine{
     private currentState?: IState;
-    private currentStateName?: PlayerStateType;
-    private states: Partial<Record<PlayerStateType, IState>> = {};
-    // private playerStates: Record<PlayerStateType, IState>;
-    // private playerStates: StateParams;
-    // Ok het idee is om een generieke statemachine te maken
-    // Bij het instanteren van de class geef je als parameter mee welke set van playerStates je wil gebruiken
-    //
-    // constructor(stateGroup: PlayerStateType) {
-    //     this.addState(PLAYER_STATE_TYPE.Idle, )
-    // }
+    private currentStateName?: StateMachineTypes;
+    private states: Partial<Record<StateMachineTypes, IState>> = {};
 
-    public addState(type: PlayerStateType, state: IState){
-        // if(type in this.playerStates) return;
-
+    public addState(type: StateMachineTypes, state: IState){
         this.states[type] = state;
     }
 
-    public changeState(newState:PlayerStateType, gamePhysics: GamePhysics){
+    public changeState(newState:StateMachineTypes, gamePhysics?: GamePhysics){
         const state = this.states[newState];
         if(this.isOnState(newState) || !state) return;
 
@@ -33,6 +24,7 @@ export default class StateMachine{
         this.currentStateName = newState;
 
         this.currentState.enter(gamePhysics);
+        // debugger;
     }
 
     public update() {
